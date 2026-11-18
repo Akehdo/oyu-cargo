@@ -3,6 +3,8 @@
 /.claude/
 /.codex/
 /code-review-*.html
+/deploy-backups/
+/releases/
 .env
 .env.*
 !.env.example
