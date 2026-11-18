@@ -15,6 +15,7 @@ import {
   SessionExpiredError,
 } from "../../../shared/api/http";
 import { terms } from "../../../config/content";
+import { normalizePhoneInput } from "../../../shared/utils/format";
 import type { TokenPairResponse } from "../../../shared/api/types";
 import {
   AuthTokens,
@@ -31,13 +32,14 @@ import {
 } from "../lib/tokenStorage";
 
 export type LoginPayload = {
-  /** Phone for clients, email for administrators. */
+  /** Clients use a phone number or email, staff use email. */
   login: string;
   password: string;
 };
 
 export type RegisterPayload = {
   name: string;
+  email: string;
   phone: string;
   password: string;
 };
@@ -158,15 +160,11 @@ export function AuthProvider({ children }: PropsWithChildren): JSX.Element {
 
   const login = useCallback(
     async ({ login: identifier, password }: LoginPayload) => {
-      // One sign-in form for the platform: staff use email, clients a phone.
-      const isEmail = identifier.includes("@");
       const payload = await request<TokenPairResponse>(
-        isEmail ? "/auth/login" : "/client/auth/login",
+        "/auth/login",
         {
           method: "POST",
-          body: isEmail
-            ? { email: identifier, password }
-            : { phone: identifier, password },
+          body: { login: normalizePhoneInput(identifier) ?? identifier.trim(), password },
         },
       );
       const nextTokens = startLogin(payload);
@@ -178,12 +176,12 @@ export function AuthProvider({ children }: PropsWithChildren): JSX.Element {
   );
 
   const register = useCallback(
-    async ({ name, phone, password }: RegisterPayload) => {
+    async ({ name, email, phone, password }: RegisterPayload) => {
       const payload = await request<TokenPairResponse>(
         "/client/auth/register",
         {
           method: "POST",
-          body: { name, phone, password, accept_terms: true, terms_version: terms.version },
+          body: { name, email, phone, password, accept_terms: true, terms_version: terms.version },
         },
       );
       setWelcomePending(true);

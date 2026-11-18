@@ -22,6 +22,7 @@ describe("registration terms", () => {
   });
   const dto = {
     name: "Test Client",
+    email: "client@example.com",
     phone: "+77011234567",
     password: "test-only",
     accept_terms: true,
@@ -38,7 +39,11 @@ describe("registration terms", () => {
       await assert.rejects(validate(value));
   });
   it("requires the displayed terms version before creating an account", async () => {
-    const accounts = new ClientAccountsService({} as never, {} as never);
+    const accounts = new ClientAccountsService(
+      {} as never,
+      {} as never,
+      {} as never,
+    );
     for (const version of [undefined, "old"]) {
       await assert.rejects(
         accounts.register({ ...dto, terms_version: version }),

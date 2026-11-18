@@ -1,6 +1,7 @@
 import { UserRound } from "lucide-react";
 import { formatDate } from "../../../shared/utils/date";
 import type { TrackOwner } from "../../clients/types";
+import { ClientPhoneLink } from "../../clients/components/ClientPhoneLink";
 
 type TrackOwnerCardProps = {
   owner: TrackOwner;
@@ -41,7 +42,7 @@ export function TrackOwnerCard({
             </div>
             <div>
               <dt>Номер регистрации</dt>
-              <dd>{client.phone ?? "—"}</dd>
+              <dd><ClientPhoneLink phone={client.phone} /></dd>
             </div>
             {owner.track_comment && (
               <div>

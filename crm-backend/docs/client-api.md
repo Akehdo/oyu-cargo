@@ -17,6 +17,7 @@ by CRM endpoints and a staff token is rejected by client endpoints.
 ```json
 {
   "name": "Айгерим",
+  "email": "aigerim@example.com",
   "phone": "+7 701 123 45 67",
   "password": "min 6 chars",
   "accept_terms": true,
@@ -24,17 +25,20 @@ by CRM endpoints and a staff token is rejected by client endpoints.
 }
 ```
 
-- `phone` is normalized to `+7XXXXXXXXXX` (accepts `8701...`, `7701...`, `+7 (701) ...`).
+- Email and phone are required for new accounts. Email is trimmed and lowercased.
+- A Kazakhstani mobile number is stored as `+7XXXXXXXXXX`. For example, `8 701 123 45 67`, `77011234567`, and `+7 (701) 123-45-67` all become `+77011234567`. Use only the digits for a WhatsApp link, as in `https://wa.me/77011234567`.
 - Send the JSON boolean `true` and the version displayed to the client. A missing or stale version returns 409 with `error.code = TERMS_VERSION_MISMATCH`. Reload the published terms before submitting again.
 - A unique random 5-digit client code (10000–99999) is assigned automatically.
   Codes already used in CRM issuances are skipped.
-- `409` when the phone is already registered.
+- A phone or email that is already in use returns `409` with `error.code = CONTACT_ALREADY_REGISTERED`.
 
-Response `201`: `TokenPair`.
+Response `201`: `TokenPair` plus the assigned `client_code`.
 
-### `POST /client/auth/login`
+### `POST /auth/login`
 
-`{ "phone": "...", "password": "..." }` → `200 TokenPair`, `401` on bad credentials.
+`{ "login": "aigerim@example.com", "password": "..." }` → `200 TokenPair`, `401` on bad credentials. The `login` field accepts a client email, a client phone number or an administrator email. Clients with an existing phone-only account can still sign in using their phone.
+
+Existing API clients can continue using `POST /client/auth/login` with `{ "phone": "...", "password": "..." }` for client accounts and `POST /auth/login` with `{ "email": "...", "password": "..." }` for administrators.
 
 ### `POST /client/auth/refresh`
 

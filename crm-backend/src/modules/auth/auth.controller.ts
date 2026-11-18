@@ -1,4 +1,11 @@
-import { Body, Controller, HttpCode, HttpStatus, Post } from "@nestjs/common";
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  HttpCode,
+  HttpStatus,
+  Post,
+} from "@nestjs/common";
 
 import { AuthService } from "./auth.service";
 import { LoginDto } from "./dto/login.dto";
@@ -11,7 +18,11 @@ export class AuthController {
   @Post("login")
   @HttpCode(HttpStatus.OK)
   async login(@Body() dto: LoginDto) {
-    return this.authService.loginAdmin(dto.email, dto.password);
+    if (dto.login !== undefined && dto.email === undefined)
+      return this.authService.loginByIdentifier(dto.login, dto.password);
+    if (dto.email !== undefined && dto.login === undefined)
+      return this.authService.loginAdmin(dto.email, dto.password);
+    throw new BadRequestException("Укажите ровно одно из полей login или email.");
   }
 
   @Post("logout")

@@ -7,7 +7,7 @@
 - SSH: `ssh -p 22022 root@104.207.93.110`
 - Проект: `/opt/crm`, backend: `/opt/crm/crm-backend`
 - Настройки: `/opt/crm/crm-backend/.env` (не добавлять в Git)
-- Администратор: `ruslankadirov1337@gmail.com`
+- Вход в админ-панель: https://oyu-cargo.online/admin. Email администратора задаётся серверной настройкой `SEED_ADMIN_EMAIL`.
 
 Сервер использует новую базу. Локальные записи не импортировались.
 Публичные порты: 80 и 443. PostgreSQL, Redis и API доступны внутри Docker.

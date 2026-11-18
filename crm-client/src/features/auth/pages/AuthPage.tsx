@@ -11,7 +11,7 @@ import { FormEvent, useState } from "react";
 import { brand, hasConfirmedWarehouse, tariffs } from "../../../config/content";
 import { Logo } from "../../../shared/components/Logo";
 import { ApiError, errorText } from "../../../shared/api/http";
-import { formatLoginInput, isPhoneInput, maskPhoneInput } from "../../../shared/utils/format";
+import { formatCompletedPhone, isPhoneInput, normalizePhoneInput } from "../../../shared/utils/format";
 import { TermsModal } from "../components/TermsModal";
 import { useAuth } from "../context/AuthContext";
 import { useRouter } from "../../../shared/router";
@@ -104,24 +104,24 @@ function PhoneField({
   value: string;
   onChange: (value: string) => void;
 }): JSX.Element {
+  const showPrefix = !/^\s*[+8]/.test(value) && value.replace(/\D/g, "").length <= 10;
   return (
     <label>
       Телефон
-      <input
-        type="tel"
-        inputMode="tel"
-        autoComplete="tel"
-        placeholder="+7 (700) 000-00-00"
-        value={value}
-        onFocus={() => {
-          if (!value) onChange("+7 ");
-        }}
-        onBlur={() => {
-          if (value.trim() === "+7") onChange("");
-        }}
-        onChange={(event) => onChange(maskPhoneInput(event.target.value, value))}
-        required
-      />
+      <span className={showPrefix ? "phone-with-prefix" : undefined}>
+        {showPrefix && <span aria-hidden="true">+7</span>}
+        <input
+          type="tel"
+          inputMode="tel"
+          autoComplete="tel"
+          aria-label="Телефон, код страны +7"
+          placeholder="(700) 000-00-00"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          onBlur={() => onChange(formatCompletedPhone(value))}
+          required
+        />
+      </span>
     </label>
   );
 }
@@ -163,7 +163,6 @@ function PasswordField({
   );
 }
 
-/** Phone for clients (masked as +7 ...), email for administrators. */
 function LoginField({
   value,
   onChange,
@@ -180,13 +179,10 @@ function LoginField({
         autoComplete="username"
         autoCapitalize="none"
         spellCheck={false}
-        placeholder="+7 (700) 000-00-00"
+        placeholder="+7 (700) 000-00-00 или email"
         value={value}
-        onChange={(event) => {
-          const next = event.target.value;
-          onChange(formatLoginInput(next, value));
-        }}
-        onBlur={() => onChange(formatLoginInput(value, value, true))}
+        onChange={(event) => onChange(event.target.value)}
+        onBlur={() => onChange(formatCompletedPhone(value))}
         required
       />
     </label>
@@ -195,7 +191,7 @@ function LoginField({
 
 function LoginForm({ onSwitch }: { onSwitch: () => void }): JSX.Element {
   const { login } = useAuth();
-  const [phone, setPhone] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -207,7 +203,7 @@ function LoginForm({ onSwitch }: { onSwitch: () => void }): JSX.Element {
 
     try {
       // App redirects once the session is set (see postLoginPath).
-      await login({ login: phone.trim(), password });
+      await login({ login: identifier, password });
     } catch (caught) {
       setError(
         caught instanceof ApiError && caught.status === 401
@@ -220,7 +216,7 @@ function LoginForm({ onSwitch }: { onSwitch: () => void }): JSX.Element {
 
   return (
     <form onSubmit={handleSubmit}>
-      <LoginField value={phone} onChange={setPhone} />
+      <LoginField value={identifier} onChange={setIdentifier} />
       <PasswordField
         label="Пароль"
         value={password}
@@ -248,6 +244,7 @@ function LoginForm({ onSwitch }: { onSwitch: () => void }): JSX.Element {
 function RegisterForm({ onSwitch }: { onSwitch: () => void }): JSX.Element {
   const { register } = useAuth();
   const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [passwordRepeat, setPasswordRepeat] = useState("");
@@ -262,6 +259,15 @@ function RegisterForm({ onSwitch }: { onSwitch: () => void }): JSX.Element {
 
     if (!name.trim()) {
       setError("Укажите имя.");
+      return;
+    }
+    if (!email.trim()) {
+      setError("Укажите email.");
+      return;
+    }
+    const normalizedPhone = normalizePhoneInput(phone);
+    if (!normalizedPhone) {
+      setError("Укажите полный номер телефона, например +7 (701) 123-45-67.");
       return;
     }
     if (password.length < MIN_PASSWORD_LENGTH) {
@@ -279,7 +285,7 @@ function RegisterForm({ onSwitch }: { onSwitch: () => void }): JSX.Element {
 
     setBusy(true);
     try {
-      await register({ name: name.trim(), phone: phone.trim(), password });
+      await register({ name: name.trim(), email: email.trim(), phone: normalizedPhone, password });
     } catch (caught) {
       if (caught instanceof ApiError && caught.code === "TERMS_VERSION_MISMATCH") {
         setAccepted(false);
@@ -289,7 +295,7 @@ function RegisterForm({ onSwitch }: { onSwitch: () => void }): JSX.Element {
       }
       setError(
         caught instanceof ApiError && caught.status === 409
-          ? "Этот номер уже зарегистрирован. Войдите или напишите нам, если не помните пароль."
+          ? "Номер телефона или email уже зарегистрирован. Войдите или напишите нам, если не помните пароль."
           : errorText(caught, "Не удалось зарегистрироваться"),
       );
       setBusy(false);
@@ -312,6 +318,18 @@ function RegisterForm({ onSwitch }: { onSwitch: () => void }): JSX.Element {
         />
       </label>
       <PhoneField value={phone} onChange={setPhone} />
+      <label>
+        Email
+        <input
+          type="email"
+          autoComplete="email"
+          autoCapitalize="none"
+          spellCheck={false}
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          required
+        />
+      </label>
       <PasswordField
         label={`Пароль (не менее ${MIN_PASSWORD_LENGTH} символов)`}
         value={password}

@@ -12,6 +12,7 @@ import { PanelHeader } from "../../../shared/components/PanelHeader";
 import { formatDate } from "../../../shared/utils/date";
 import { StatusBadge } from "../../parcels/components/StatusBadge";
 import type { ClientCard, ClientTrack, ClientTrackStatus } from "../types";
+import { ClientPhoneLink } from "./ClientPhoneLink";
 
 type ClientCardViewProps = {
   card: ClientCard;
@@ -46,7 +47,7 @@ export function ClientCardView({
               <dl>
                 <div>
                   <dt>Номер регистрации</dt>
-                  <dd>{client.phone ?? "—"}</dd>
+                  <dd><ClientPhoneLink phone={client.phone} /></dd>
                 </div>
                 <div>
                   <dt>Зарегистрирован</dt>

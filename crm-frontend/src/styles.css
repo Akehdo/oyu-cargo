@@ -1410,6 +1410,11 @@ th {
   color: var(--muted);
 }
 
+.client-phone-link {
+  color: var(--link);
+  text-underline-offset: 0.15em;
+}
+
 /* ---------- Clients ---------- */
 
 .client-card {

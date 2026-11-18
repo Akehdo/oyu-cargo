@@ -4,15 +4,7 @@
  * Returns null when the value cannot be a valid number.
  */
 export function normalizePhone(value: string): string | null {
-  let digits = value.replace(/\D/g, "");
-
-  if (digits.length === 11 && (digits.startsWith("8") || digits.startsWith("7"))) {
-    digits = digits.slice(1);
-  }
-
-  if (digits.length !== 10 || !digits.startsWith("7")) {
-    return null;
-  }
-
-  return `+7${digits}`;
+  const compact = value.trim().replace(/[\s().-]/g, "");
+  const match = /^(?:\+7|[78])?(7\d{9})$/.exec(compact);
+  return match ? `+7${match[1]}` : null;
 }

@@ -11,6 +11,7 @@ import {
   searchClientsRequest,
 } from "../api/clientsApi";
 import { ClientCardView } from "../components/ClientCardView";
+import { ClientPhoneLink } from "../components/ClientPhoneLink";
 import type { ClientCard, ListClientsResponse } from "../types";
 
 type ClientsPageProps = {
@@ -261,7 +262,7 @@ export function ClientsPage({
                       </button>
                     </td>
                     <td>{client.name}</td>
-                    <td>{client.phone ?? "—"}</td>
+                    <td><ClientPhoneLink phone={client.phone} /></td>
                     <td>{client.active_tracks}</td>
                     <td>{formatDate(client.created_at)}</td>
                   </tr>

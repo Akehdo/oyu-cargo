@@ -411,6 +411,25 @@ textarea:focus {
   display: block;
 }
 
+.phone-with-prefix {
+  position: relative;
+}
+
+.phone-with-prefix > span {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.phone-with-prefix input {
+  padding-left: 42px;
+}
+
 .input-with-action input {
   padding-right: 48px;
 }

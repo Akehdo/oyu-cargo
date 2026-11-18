@@ -5,10 +5,12 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import bcrypt from "bcryptjs";
 
 import { Prisma, UserRole } from "../../prisma/generated";
 import { PrismaService } from "../../prisma/prisma.service";
+import { normalizeEmail } from "../../shared/email";
 import { normalizePhone } from "../../shared/phone";
 import { AuthService } from "../auth/auth.service";
 import { TokenPair } from "../auth/types/auth-types";
@@ -27,6 +29,7 @@ export class ClientAccountsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auth: AuthService,
+    private readonly config: ConfigService,
   ) {}
 
   async register(
@@ -43,14 +46,16 @@ export class ClientAccountsService {
     }
     const phone = normalizePhone(dto.phone);
     if (!phone) {
-      throw new BadRequestException("invalid phone number");
+      throw new BadRequestException(
+        "Введите действительный мобильный номер Казахстана.",
+      );
     }
-
+    const email = normalizeEmail(dto.email);
+    await this.ensureContactsAreFree(email, phone);
     const passwordHash = await bcrypt.hash(dto.password, 10);
 
     // Retry when two registrations race for the same random code.
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      await this.ensurePhoneIsFree(phone);
       const code = await this.pickFreeCode();
 
       try {
@@ -64,6 +69,7 @@ export class ClientAccountsService {
                 termsVersion: dto.terms_version,
               },
             },
+            email,
             passwordHash,
             phone,
             role: UserRole.user,
@@ -78,6 +84,9 @@ export class ClientAccountsService {
         ) {
           throw error;
         }
+        // A concurrent signup may have taken a contact after our availability check.
+        // Only a random profile-code collision should proceed to the next attempt.
+        await this.ensureContactsAreFree(email, phone);
       }
     }
 
@@ -109,13 +118,20 @@ export class ClientAccountsService {
     return { password };
   }
 
-  private async ensurePhoneIsFree(phone: string): Promise<void> {
-    const existing = await this.prisma.user.findUnique({
-      select: { id: true },
-      where: { phone },
-    });
-    if (existing) {
-      throw new ConflictException("phone is already registered");
+  private async ensureContactsAreFree(
+    email: string,
+    phone: string,
+  ): Promise<void> {
+    const existing = await this.prisma.$queryRaw<{ id: string }[]>`
+      SELECT id FROM users WHERE phone = ${phone} OR lower(btrim(email)) = lower(${email}) LIMIT 1`;
+    const seedEmail = this.config.get<string>("SEED_ADMIN_EMAIL");
+    if (existing.length || (seedEmail && normalizeEmail(seedEmail) === email)) {
+      const message = "Телефон или электронная почта уже используются.";
+      throw new ConflictException({
+        statusCode: 409,
+        error: { code: "CONTACT_ALREADY_REGISTERED", message },
+        message,
+      });
     }
   }
 

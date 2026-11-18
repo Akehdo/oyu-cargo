@@ -2,6 +2,7 @@ import { Transform } from "class-transformer";
 import {
   Equals,
   IsBoolean,
+  IsEmail,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -18,6 +19,11 @@ export class RegisterClientDto {
   @MinLength(2, { message: "name must be at least 2 characters" })
   @MaxLength(100, { message: "name is too long" })
   name!: string;
+
+  @Transform(trim)
+  @IsEmail({}, { message: "Введите действительный адрес электронной почты." })
+  @MaxLength(255, { message: "Адрес электронной почты слишком длинный." })
+  email!: string;
 
   @IsString({ message: "invalid value" })
   @IsNotEmpty({ message: "field is required" })

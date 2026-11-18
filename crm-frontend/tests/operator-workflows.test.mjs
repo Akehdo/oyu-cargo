@@ -23,6 +23,7 @@ const { useParcelsDashboard } = await load("features/parcels/hooks/useParcelsDas
 const { useCashDashboard } = await load("features/cash/hooks/useCashDashboard.ts");
 const { ClientsPage } = await load("features/clients/pages/ClientsPage.tsx");
 const { ClientCardView } = await load("features/clients/components/ClientCardView.tsx");
+const { TrackOwnerCard } = await load("features/parcels/components/TrackOwnerCard.tsx");
 const { usePersistedState } = await load("shared/hooks/usePersistedState.ts");
 const { ApiError, request } = await load("shared/api/http.ts");
 const { act } = renderer;
@@ -164,6 +165,46 @@ test("a delayed reset cannot put a password on another client card", async () =>
   await act(async () => { finishReset({ password: "for-first-client" }); await reset; });
   assert.equal(card().card.code, clients[1].code);
   assert.equal(card().temporaryPassword, "");
+});
+
+test("WhatsApp links use the selected client's mobile number in the list, card and parcel search", async (t) => {
+  const cases = [
+    ["+77010000001", "77010000001"],
+    ["8 (702) 000-00-02", "77020000002"],
+    ["77030000003", "77030000003"],
+    ["7040000004", "77040000004"],
+    [null, null],
+    ["+7 705 000-00-05 доб. 12", null],
+    ["https://example.test/77060000006", null],
+  ];
+  const clients = cases.map(([phone], index) => ({
+    code: 10001 + index, user_id: String(index), name: "Клиент", phone,
+  }));
+  globalThis.testAuth = { api: async (path) => {
+    if (path.startsWith("/clients/by-code/")) {
+      const client = clients.find(({ code }) => path.endsWith("/" + code));
+      return { client, code: client.code, stats: {}, loyalty: {}, active_tracks: [], archived_tracks: [], issuances: [] };
+    }
+    return { items: clients, meta: { total: clients.length, total_pages: 1 } };
+  } };
+  await act(async () => { tree = renderer.create(React.createElement(ClientsPage, { codeToOpen: null, onCodeOpened() {} })); });
+  const rows = tree.root.findAllByType("tr").filter((row) => row.props.onClick);
+  for (const [index, [, digits]] of cases.entries()) {
+    const links = rows[index].findAllByType("a");
+    assert.deepEqual(links.map((link) => link.props.href), digits ? ["https://wa.me/" + digits] : []);
+  }
+  const stopPropagation = t.mock.fn();
+  rows[1].findByType("a").props.onClick({ stopPropagation });
+  assert.equal(stopPropagation.mock.callCount(), 1);
+  await act(async () => rows[1].props.onClick());
+  const cardLink = tree.root.findByType(ClientCardView).findByType("a");
+  assert.equal(cardLink.props.href, "https://wa.me/77020000002");
+  assert.equal(cardLink.props.rel, "noopener noreferrer");
+
+  act(() => tree.update(React.createElement(TrackOwnerCard, {
+    owner: { client: clients[2], code: clients[2].code, source: "issuance" }, onClientOpen() {},
+  })));
+  assert.equal(tree.root.findByType("a").props.href, "https://wa.me/77030000003");
 });
 
 test("parcel row selection replaces the owner, distinguishes 404 from a failed issuance lookup and uses actual counts", async () => {

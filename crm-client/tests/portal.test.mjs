@@ -23,7 +23,8 @@ const server = await createServer({
   }],
 });
 const load = (path) => server.ssrLoadModule("/src/" + path);
-const { AuthProvider } = await load("features/auth/context/AuthContext.tsx");
+const { AuthProvider, useAuth } = await load("features/auth/context/AuthContext.tsx");
+const { postLoginPath } = await load("shared/router.tsx");
 const { MeProvider } = await load("features/me/MeContext.tsx");
 const { NotificationsProvider } = await load("features/notifications/NotificationsContext.tsx");
 const { NotificationsPanel } = await load("features/notifications/NotificationsPanel.tsx");
@@ -81,9 +82,19 @@ test("an incomplete warehouse offers support and no copy action, even with a val
   assert.equal(hasConfirmedWarehouse(example), false);
 });
 
-test("login supports a typed local number, pasted international number, trunk prefix and staff email", async () => {
+test("login submits phone, client email and staff email through the shared identifier", async () => {
+  const requests = [];
+  globalThis.fetch = async (url, options) => {
+    requests.push([url, JSON.parse(options.body)]);
+    return json({}, 401);
+  };
   await mount(h(AuthPage, { mode: "login" }));
   const input = tree.root.findByProps({ autoComplete: "username" });
+  change(tree.root.findByProps({ type: "password", autoComplete: "current-password" }), "example-password");
+  const submit = async (identifier) => {
+    await act(() => tree.root.findByType("form").props.onSubmit({ preventDefault }));
+    assert.deepEqual(requests.at(-1), ["/api/auth/login", { login: identifier, password: "example-password" }]);
+  };
   assert.equal(input.props.inputMode, "text");
   for (const char of "7011234567") {
     change(input, input.props.value + char);
@@ -91,15 +102,37 @@ test("login supports a typed local number, pasted international number, trunk pr
   }
   act(() => input.props.onBlur());
   assert.equal(input.props.value, "+7 (701) 123-45-67");
-  for (const number of ["+7 (701) 123-45-67", "87011234567", "77011234567"]) {
+  for (const number of ["+7 (701) 123-45-67", "87011234567", "77011234567", "7.701.123.45.67"]) {
     change(input, number);
+    await submit("+77011234567");
     act(() => input.props.onBlur());
     assert.equal(input.props.value, "+7 (701) 123-45-67");
   }
-  change(input, "7office@example.invalid");
-  assert.equal(input.props.inputMode, "email");
-  assert.equal(input.props.value, "7office@example.invalid");
+  for (const email of ["client@example.invalid", "7office@example.invalid"]) {
+    change(input, email);
+    assert.equal(input.props.inputMode, "email");
+    await submit(email);
+  }
+  assert.match(screen(), /Неверный логин или пароль/);
 });
+
+for (const [role, destination] of [["admin", "/admin/clients"], ["user", "/"]]) {
+  test("the returned " + role + " role selects the correct destination after email login", async () => {
+    const claims = Buffer.from(JSON.stringify({ sub: "example", role, exp: Math.floor(Date.now() / 1000) + 3600 })).toString("base64url");
+    globalThis.fetch = async () => json({ access_token: "test." + claims + ".test", refresh_token: "test-refresh" });
+    function Login() {
+      const session = useAuth();
+      return session.isAuthenticated
+        ? h("output", null, postLoginPath(session.role, "/admin/clients"))
+        : h(AuthPage, { mode: "login" });
+    }
+    await mount(h(Login));
+    change(tree.root.findByProps({ autoComplete: "username" }), "person@example.invalid");
+    change(tree.root.findByProps({ type: "password", autoComplete: "current-password" }), "example-password");
+    await act(() => tree.root.findByType("form").props.onSubmit({ preventDefault }));
+    assert.deepEqual(tree.root.findByType("output").children, [destination]);
+  });
+}
 
 test("signup submits exactly the displayed edition; a stale edition clears consent and requests a reload", async () => {
   let submitted;
@@ -110,8 +143,12 @@ test("signup submits exactly the displayed edition; a stale edition clears conse
   };
   await mount(h(AuthPage, { mode: "register" }));
   change(tree.root.findByProps({ autoComplete: "given-name" }), "Пример");
+  const email = tree.root.findByProps({ autoComplete: "email" });
+  assert.equal(email.props.type, "email");
+  assert.equal(email.props.required, true);
+  change(email, "client@example.invalid");
   change(tree.root.findByProps({ autoComplete: "tel" }), "+77011234567");
-  for (const field of tree.root.findAllByProps({ autoComplete: "new-password" })) change(field, "example-password");
+  for (const field of tree.root.findAllByProps({ type: "password", autoComplete: "new-password" })) change(field, "example-password");
   act(() => button("условиями карго").props.onClick({ preventDefault }));
   const edition = tree.root.findAllByType("p").find((node) => node.children.includes("Редакция: ")).children[1];
   assert.ok(edition);
@@ -120,8 +157,52 @@ test("signup submits exactly the displayed edition; a stale edition clears conse
   await act(() => tree.root.findByType("form").props.onSubmit({ preventDefault }));
   assert.equal(submitted.terms_version, edition);
   assert.equal(submitted.accept_terms, true);
+  assert.equal(submitted.email, "client@example.invalid");
+  assert.equal(submitted.phone, "+77011234567");
   assert.equal(tree.root.findByProps({ id: "accept-terms" }).props.checked, false);
   assert.match(screen(), /Обновите страницу, прочитайте новую редакцию/);
+});
+
+test("signup requires both contacts and accepts edited, typed and pasted domestic and international phones", async () => {
+  const requests = [];
+  globalThis.fetch = async (url, options) => {
+    requests.push([url, JSON.parse(options.body)]);
+    return json({ error: { code: "CONTACT_ALREADY_REGISTERED" } }, 409);
+  };
+  await mount(h(AuthPage, { mode: "register" }));
+  const phone = tree.root.findByProps({ autoComplete: "tel" });
+  const email = tree.root.findByProps({ autoComplete: "email" });
+  assert.equal(phone.props.required, true);
+  assert.equal(phone.props["aria-label"], "Телефон, код страны +7");
+  assert.ok(tree.root.findByProps({ className: "phone-with-prefix" }).findAllByType("span")
+    .some((span) => span.children.includes("+7")));
+  change(tree.root.findByProps({ autoComplete: "given-name" }), "Пример");
+  for (const field of tree.root.findAllByProps({ type: "password", autoComplete: "new-password" })) change(field, "example-password");
+  act(() => tree.root.findByProps({ id: "accept-terms" }).props.onChange({ target: { checked: true } }));
+  const submit = () => act(() => tree.root.findByType("form").props.onSubmit({ preventDefault }));
+  await submit();
+  assert.match(screen(), /Укажите email/);
+  change(email, "client@example.invalid");
+  change(phone, "87");
+  await submit();
+  assert.match(screen(), /Укажите полный номер телефона/);
+  assert.equal(requests.length, 0);
+  for (const value of ["87011234567", "77011234567", "7011234567", "+77011234567"]) {
+    change(phone, "");
+    for (const char of value) change(phone, phone.props.value + char);
+    await submit();
+    const [url, body] = requests.at(-1);
+    assert.equal(url, "/api/client/auth/register");
+    assert.equal(body.phone, "+77011234567");
+    assert.equal(body.email, "client@example.invalid");
+  }
+  change(phone, "8 (702) 098-76-54");
+  act(() => phone.props.onBlur());
+  assert.equal(phone.props.value, "+7 (702) 098-76-54");
+  change(phone, phone.props.value.slice(0, -1) + "1");
+  await submit();
+  assert.equal(requests.at(-1)[1].phone, "+77020987651");
+  assert.match(screen(), /Номер телефона или email уже зарегистрирован/);
 });
 
 test("late track creation refreshes the current archive and pages beyond the former 500-item boundary", async () => {

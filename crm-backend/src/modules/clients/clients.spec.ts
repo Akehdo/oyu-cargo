@@ -13,6 +13,7 @@ describe("normalizePhone", () => {
   it("accepts common Kazakhstan formats", () => {
     for (const value of [
       "+7 701 123 45 67",
+      "87011234567",
       "8 (701) 123-45-67",
       "77011234567",
       "7011234567",
@@ -22,7 +23,14 @@ describe("normalizePhone", () => {
   });
 
   it("rejects numbers that are not Kazakhstan mobiles", () => {
-    for (const value of ["", "12345", "+1 202 555 0100", "8 (501) 123-45-67"]) {
+    for (const value of [
+      "",
+      "12345",
+      "+1 202 555 0100",
+      "8 (501) 123-45-67",
+      "+8 701 123 45 67",
+      "client87011234567",
+    ]) {
       assert.equal(normalizePhone(value), null, value);
     }
   });

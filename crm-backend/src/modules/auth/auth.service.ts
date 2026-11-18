@@ -12,6 +12,7 @@ import { TokenService } from "./token.service";
 import { TokenPair } from "./types/auth-types";
 
 type SessionUser = Pick<User, "id" | "role" | "sessionVersion">;
+type LoginUser = SessionUser & Pick<User, "passwordHash">;
 
 // Compared against when the user does not exist, so response time does not
 // reveal which emails or phones are registered.
@@ -28,8 +29,16 @@ export class AuthService {
 
   /** CRM login: email + password, admin role only. */
   async loginAdmin(email: string, password: string): Promise<TokenPair> {
-    const user = await this.users.findByEmail(email.trim().toLowerCase());
+    const user = await this.users.findByEmail(email);
     return this.loginWithRole(user, password, UserRole.admin);
+  }
+
+  /** The shared form accepts either account role by email; phone belongs to client accounts. */
+  async loginByIdentifier(login: string, password: string): Promise<TokenPair> {
+    if (login.includes("@")) {
+      return this.loginWithRole(await this.users.findByEmail(login), password);
+    }
+    return this.loginClient(login, password);
   }
 
   /** Client portal login: phone + password, user role only. */
@@ -106,16 +115,20 @@ export class AuthService {
   }
 
   private async loginWithRole(
-    user: User | null,
+    user: LoginUser | null,
     password: string,
-    role: UserRole,
+    role?: UserRole,
   ): Promise<TokenPair> {
     const passwordMatches = await bcrypt.compare(
       password,
       user?.passwordHash ?? DUMMY_PASSWORD_HASH,
     );
 
-    if (!user || !passwordMatches || user.role !== role) {
+    if (
+      !user ||
+      !passwordMatches ||
+      (role !== undefined && user.role !== role)
+    ) {
       throw new InvalidCredentialsException();
     }
 

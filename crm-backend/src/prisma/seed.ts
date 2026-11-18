@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { PrismaPg } from "@prisma/adapter-pg";
 
 import { PrismaClient, UserRole } from "./generated";
+import { normalizeEmail } from "../shared/email";
 
 // The seeded account is CRM staff; clients register through the client portal.
 const role = UserRole.admin;
@@ -27,10 +28,14 @@ async function main(): Promise<void> {
   });
 
   try {
-    const existingUser = await prisma.user.findUnique({
-      select: { id: true },
-      where: { email },
-    });
+    const matches = await prisma.$queryRaw<{ id: string; role: UserRole }[]>`
+      SELECT id, role FROM users WHERE lower(btrim(email)) = lower(${email}) LIMIT 2`;
+    if (matches.length > 1 || (matches.length && matches[0].role !== role)) {
+      throw new Error(
+        "The configured admin email is already assigned to another account.",
+      );
+    }
+    const existingUser = matches[0];
 
     if (existingUser && !overwriteExisting) {
       console.log(`Seed user ${email} already exists; skipping update`);
@@ -46,7 +51,7 @@ async function main(): Promise<void> {
           sessionVersion: { increment: 1 },
           role,
         },
-        where: { email },
+        where: { id: existingUser.id },
       });
 
       console.log(`Updated seed user ${email} with role ${role}`);
@@ -74,10 +79,6 @@ function getRequiredEnv(key: string): string {
   }
 
   return value;
-}
-
-function normalizeEmail(email: string): string {
-  return email.trim().toLowerCase();
 }
 
 function isEnabled(value: string | undefined): boolean {

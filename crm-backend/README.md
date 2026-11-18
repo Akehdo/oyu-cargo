@@ -190,8 +190,9 @@ operations continue normally and notifications stay disabled.
 One `users` table holds everyone:
 
 - `admin` — CRM staff, sign in with email at `POST /auth/login`. Every CRM endpoint requires this role.
-- `user` — cargo client, registers and signs in with a phone number at `/client/auth/*`
-  and owns a `client_profiles` row (random 5-digit code, name, accepted terms).
+- `user` — cargo client, registers with email and phone at `POST /client/auth/register`
+  and signs in with either contact at `POST /auth/login`. The client profile holds the
+  random 5-digit code, name and accepted terms. Existing phone-only accounts can still sign in.
 
 The access guard is deny-by-default: a route must declare `@AdminOnly()` or `@ClientOnly()`.
 The migration `20261118000000_unified_users_client_portal` turns every existing user into
