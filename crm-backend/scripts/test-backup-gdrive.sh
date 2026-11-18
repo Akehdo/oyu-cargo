@@ -20,6 +20,9 @@ if [[ "$*" == *pg_dump* ]]; then
   [[ "${MOCK_DUMP_FAIL:-0}" = 0 ]]
 elif [[ "$*" == *pg_restore* ]]; then
   cat >/dev/null
+  if [[ "${MOCK_AGE_CURRENT:-0}" = 1 ]]; then
+    touch -d '30 days ago' "$CRM_BACKUP_DIR"/*.partial
+  fi
   [[ "${MOCK_INVALID:-0}" = 0 ]]
 else
   exit 99
@@ -38,8 +41,7 @@ elif [[ "$1" = cat ]]; then
     cat "$MOCK_REMOTE/${2##*/}"
   fi
 elif [[ "$1" = delete ]]; then
-  printf "%s
-" "$*" >> "$MOCK_REMOTE/.deletes"
+  printf '%s\n' "$@" > "$MOCK_REMOTE/.delete-args"
 else
   exit 99
 fi
@@ -81,29 +83,54 @@ run_backup
 [[ "$(count_files '*.dump')" -eq 2 && "$(count_files '*.uploaded')" -eq 2 ]]
 echo 'PASS: failed upload is preserved and retried on the next run'
 
+export CRM_BACKUP_DIR="$test_dir/changed-before-retry"
+MOCK_UPLOAD_FAIL=1 expect_failure
+pending=( "$CRM_BACKUP_DIR"/*.dump )
+printf 'damaged after the first attempt' > "${pending[0]}"
+expect_failure
+grep -q 'Local checksum mismatch' "$test_dir/output"
+[[ ! -f "${pending[0]}.uploaded" && ! -f "$MOCK_REMOTE/${pending[0]##*/}" ]]
+echo 'PASS: a local checksum mismatch stops the retry before upload'
+
 export CRM_BACKUP_DIR="$test_dir/corrupt" MOCK_CORRUPT=1
 expect_failure
 [[ "$(count_files '*.dump')" -eq 1 && "$(count_files '*.uploaded')" -eq 0 ]]
 unset MOCK_CORRUPT
 echo 'PASS: checksum mismatch is not marked successful'
 
-export CRM_BACKUP_DIR="$test_dir/retention" CRM_BACKUP_KEEP_DAYS=7
-mkdir -p "$CRM_BACKUP_DIR"
-old_uploaded="$CRM_BACKUP_DIR/crm_2020-01-01T00-00-00Z_old1.dump"
-old_pending="$CRM_BACKUP_DIR/crm_2020-01-02T00-00-00Z_old2.dump"
-printf old > "$old_uploaded"; printf old > "$old_pending"
-touch -d "30 days ago" "$old_uploaded" "$old_pending"
-printf hash > "$old_uploaded.uploaded"
+export CRM_BACKUP_DIR="$test_dir/retention" CRM_BACKUP_KEEP_DAYS=14
+mkdir -p "$CRM_BACKUP_DIR/nested"
+old_uploaded="$CRM_BACKUP_DIR/crm_2020-01-01T00-00-00Z_OLD123.dump"
+old_pending="$CRM_BACKUP_DIR/crm_2020-01-02T00-00-00Z_OLD234.dump"
+bad_marker="$CRM_BACKUP_DIR/crm_2020-01-03T00-00-00Z_BAD123.dump"
+manual="$CRM_BACKUP_DIR/crm_cutover_manual.dump"
+nested="$CRM_BACKUP_DIR/nested/${old_uploaded##*/}"
+for file in "$old_uploaded" "$old_pending" "$bad_marker" "$manual" "$nested"; do
+  printf 'old' > "$file"
+  touch -d '337 hours ago' "$file"
+done
+(cd "$CRM_BACKUP_DIR" && sha256sum "${old_uploaded##*/}") > "$old_uploaded.sha256"
+cut -d ' ' -f 1 "$old_uploaded.sha256" > "$old_uploaded.uploaded"
+printf '%064d\n' 0 > "$bad_marker.uploaded"
+printf 'manual sidecar' > "$manual.sha256"
+printf 'manual upload marker' > "$manual.uploaded"
 MOCK_UPLOAD_FAIL=1 expect_failure
-[[ -f "$old_uploaded" && -f "$old_pending" ]]
+[[ -f "$old_uploaded" && -f "$old_pending" && -f "$bad_marker" ]]
 run_backup
-[[ ! -f "$old_uploaded" && ! -f "$old_uploaded.uploaded" ]]
-# The pending one was uploaded by this run, then pruned as well.
-[[ ! -f "$old_pending" ]]
-[[ "$(count_files '*.dump')" -eq 2 ]]
-grep -q -- "--min-age 90d" "$MOCK_REMOTE/.deletes"
+[[ ! -f "$old_uploaded" && ! -f "$old_uploaded.sha256" && ! -f "$old_uploaded.uploaded" ]]
+[[ ! -f "$old_pending" && -f "$MOCK_REMOTE/${old_pending##*/}" ]]
+[[ -f "$bad_marker" && -f "$bad_marker.uploaded" && -f "$nested" ]]
+[[ -f "$manual" && -f "$manual.sha256" && -f "$manual.uploaded" ]]
+args="$MOCK_REMOTE/.delete-args"
+[[ "$(grep -A1 -Fx -- '--max-depth' "$args" | tail -1)" = 1 ]]
+[[ "$(grep -A1 -Fx -- '--min-age' "$args" | tail -1)" = 90d ]]
+allow="$(sed -n 's/^+ //p' "$args")"
+exclude_current="$(sed -n 's@^- /@/@p' "$args")"
+[[ "/${old_uploaded##*/}" == $allow && "/${manual##*/}" != $allow && "/nested/${old_uploaded##*/}" != $allow ]]
+[[ "/crm_2020-01-01T00-00-00Z_old1.dump" != $allow && -f "$CRM_BACKUP_DIR$exclude_current" ]]
+grep -Fxq -- '- **' "$args"
 unset CRM_BACKUP_KEEP_DAYS
-echo 'PASS: old uploaded archives are pruned locally and remotely'
+echo 'PASS: pruning protects manual, nested and unverified archives; remote filters match only managed files'
 
 export CRM_BACKUP_DIR="$test_dir/locked" MOCK_LOCKED=1
 expect_failure
@@ -122,6 +149,24 @@ run_backup
 [[ "$(count_files '*.dump')" -eq 2 && "$(count_files '*.sha256')" -eq 2 ]]
 (cd "$CRM_BACKUP_DIR" && sha256sum -c ./*.sha256)
 echo 'PASS: local mode preserves verified dumps without cloud configuration'
+
+export CRM_BACKUP_DIR="$test_dir/local-retention" CRM_BACKUP_KEEP_DAYS=14
+mkdir -p "$CRM_BACKUP_DIR"
+age13="$CRM_BACKUP_DIR/crm_2020-01-01T00-00-00Z_AGE013.dump"
+just_under="$CRM_BACKUP_DIR/crm_2020-01-01T00-00-00Z_age335.dump"
+just_over="$CRM_BACKUP_DIR/crm_2020-01-01T00-00-00Z_age337.dump"
+manual="$CRM_BACKUP_DIR/crm_before_release.dump"
+touch -d '13 days ago' "$age13"
+touch -d '335 hours ago' "$just_under"
+touch -d '337 hours ago' "$just_over" "$manual"
+touch "$just_over.sha256" "$manual.sha256"
+MOCK_AGE_CURRENT=1 run_backup
+[[ -f "$age13" && -f "$just_under" && ! -f "$just_over" && ! -f "$just_over.sha256" ]]
+[[ -f "$manual" && -f "$manual.sha256" ]]
+current="$(sed -n 's/^Local archive verified: //p' "$test_dir/output")"
+[[ -f "$current" && -f "$current.sha256" && "$current" -ot "$age13" ]]
+echo 'PASS: local pruning uses the 14-day mtime boundary and retains the current backup even if dated earlier'
+unset CRM_BACKUP_KEEP_DAYS
 
 export CRM_BACKUP_DIR="$test_dir/local-dump-failure" MOCK_DUMP_FAIL=1
 expect_failure

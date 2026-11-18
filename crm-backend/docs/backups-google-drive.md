@@ -47,8 +47,9 @@ sudo systemctl enable --now crm-backup.timer
 sudo systemctl list-timers crm-backup.timer
 ```
 
-Архивы сохраняются в `/var/backups/crm/postgres`, доступны только root и
-автоматически не удаляются. Это копии на том же сервере: при потере сервера
+Архивы сохраняются в `/var/backups/crm/postgres` и доступны только root.
+Срок хранения штатных локальных копий по умолчанию составляет 14 суток.
+При потере сервера
 они тоже могут быть потеряны. Для подключения облака позже выполни шаги ниже,
 измени `CRM_BACKUP_MODE=gdrive` в `/etc/crm-backup.env` и запусти службу ещё раз.
 Она загрузит и ранее созданные локальные дампы. Не заменяй настроенный `.env`
@@ -141,8 +142,7 @@ sudo systemctl list-timers crm-backup.timer
 защищённом месте: они нужны для восстановления настроек и содержат секреты.
 
 Архивы сжаты, но **не зашифрованы**. Папку Drive не делай общедоступной.
-Скрипт сохраняет все копии и ничего автоматически не удаляет. Контролируй свободное
-место на сервере и квоту Google Drive; политику удаления можно настроить отдельно.
+Сроки хранения локальных и облачных копий настраиваются отдельно.
 Проверка загрузки скачивает весь архив обратно и расходует трафик.
 Telegram-уведомления о бэкапах в этот скрипт не включены; ошибки видны в systemd.
 
@@ -173,13 +173,21 @@ Telegram-уведомления о бэкапах в этот скрипт не 
 удали именно эту тестовую базу и временный архив, чтобы освободить место.
 Восстановление рабочей базы выполняется отдельно с остановкой записи в CRM.
 
-## Retention and encryption
+## Срок хранения и шифрование
 
-- `CRM_BACKUP_KEEP_DAYS` (default 14): local archives older than this are deleted. In
-  `gdrive` mode only archives with a verified `.uploaded` marker are removed, and the newest
-  archive is always kept, so a broken upload never deletes the only copy.
-- `CRM_BACKUP_REMOTE_KEEP_DAYS` (default 90): `rclone delete --min-age` removes older
-  `crm_*.dump` files from the remote folder. Set `0` to keep everything.
+- `CRM_BACKUP_KEEP_DAYS` по умолчанию равен 14. После успешного запуска скрипт
+  удаляет из каталога резервных копий штатные дампы, у которых с последнего
+  изменения прошло больше указанного числа суток, вместе с их `.sha256` и
+  `.uploaded`. Дамп текущего запуска сохраняется при любом времени изменения файла.
+- Штатный дамп имеет имя вида `crm_2026-11-19T03-00-00Z_aB12c3.dump`, с шестью
+  случайными латинскими буквами или цифрами после даты. Для ручных и релизных
+  копий используйте другое имя или вложенный каталог.
+- В режиме `gdrive` для локального удаления нужна отметка `.uploaded` с SHA-256
+  текущего содержимого. При повторной отправке скрипт сверяет дамп с сохранённой
+  суммой `.sha256`, если она есть. Ошибка выгрузки останавливает очистку.
+- `CRM_BACKUP_REMOTE_KEEP_DAYS` по умолчанию равен 90. Облачная очистка
+  охватывает штатные имена в верхнем уровне выбранной папки. Ноль отключает
+  соответствующую локальную или облачную очистку.
 - Dumps contain password hashes and client phone numbers. Encrypt them before they leave the
   server with an rclone **crypt** remote layered over the Drive remote:
   `rclone config` → new remote `gdrive-crypt`, type `crypt`, remote
