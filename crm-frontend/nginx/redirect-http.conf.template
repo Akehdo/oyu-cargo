@@ -1,0 +1,11 @@
+server {
+  listen 80;
+  listen [::]:80;
+  server_name ${CRM_REDIRECT_DOMAINS};
+  server_tokens off;
+  include /etc/nginx/crm/acme.conf;
+
+  location / {
+    return 308 https://${CRM_DOMAIN}$request_uri;
+  }
+}

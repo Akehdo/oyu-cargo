@@ -1,0 +1,53 @@
+# IDE / editor
+.idea/
+.vscode/
+
+# Env files
+.env
+.env.*
+!.env.example
+.env.production.example
+
+# Dependencies
+node_modules/
+
+# Build output
+bin/
+build/
+dist/
+
+# Generated Prisma Client
+src/generated/
+
+# Prisma local files
+prisma/dev.db
+prisma/dev.db-journal
+
+# Coverage
+coverage/
+
+# Temporary files
+tmp/
+.temp/
+.cache/
+
+# Logs
+*.log
+
+# Database backups and cloud credentials
+backups/
+*.dump
+*.partial
+*.uploaded
+rclone.conf
+
+# Database backups and cloud credentials
+backups/
+*.dump
+*.partial
+*.uploaded
+rclone.conf
+
+# OS files
+.DS_Store
+Thumbs.db

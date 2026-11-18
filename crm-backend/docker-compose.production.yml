@@ -1,0 +1,30 @@
+# Linux server: docker compose -f docker-compose.yml -f docker-compose.production.yml up -d --build
+# Requires Docker Compose >= 2.24.4 for !override.
+services:
+  app:
+    environment:
+      TELEGRAM_DAILY_REPORT_ENABLED: ${TELEGRAM_DAILY_REPORT_ENABLED:-true}
+  frontend:
+    environment:
+      CRM_DOMAIN: ${CRM_DOMAIN:-oyu-cargo.online}
+      # Defaults to www.oyu-cargo.online for the canonical OYU domain.
+      CRM_REDIRECT_DOMAINS:
+      CRM_HTTPS_MODE: auto
+    ports: !override
+      - "80:80"
+      - "443:443"
+    volumes:
+      - letsencrypt:/etc/letsencrypt:ro
+      - certbot_webroot:/var/www/certbot:ro
+
+  certbot:
+    image: certbot/certbot:v5.8.0
+    profiles: ["tools"]
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      - certbot_webroot:/var/www/certbot
+    entrypoint: ["certbot"]
+
+volumes:
+  letsencrypt:
+  certbot_webroot:

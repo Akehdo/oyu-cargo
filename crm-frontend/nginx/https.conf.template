@@ -1,0 +1,39 @@
+ssl_protocols TLSv1.2 TLSv1.3;
+ssl_session_cache shared:CRM_TLS:10m;
+ssl_session_timeout 1d;
+ssl_session_tickets off;
+
+include /etc/nginx/crm/default-http.conf;
+
+server {
+  listen 443 ssl default_server;
+  listen [::]:443 ssl default_server;
+  http2 on;
+  server_name _;
+  ssl_reject_handshake on;
+  return 404;
+}
+
+server {
+  listen 80;
+  listen [::]:80;
+  server_name ${CRM_DOMAIN};
+  server_tokens off;
+  include /etc/nginx/crm/health-acme.conf;
+  location / {
+    return 308 https://${CRM_DOMAIN}$request_uri;
+  }
+}
+server {
+  listen 443 ssl;
+  listen [::]:443 ssl;
+  http2 on;
+  server_name ${CRM_DOMAIN};
+  ssl_certificate /etc/letsencrypt/live/${CRM_DOMAIN}/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/${CRM_DOMAIN}/privkey.pem;
+  server_tokens off;
+  # A recognized SNI must not serve the app for an unrelated HTTP Host.
+  if ($host != $server_name) { return 404; }
+  include /etc/nginx/crm/health-acme.conf;
+  include /etc/nginx/crm/app.conf;
+}

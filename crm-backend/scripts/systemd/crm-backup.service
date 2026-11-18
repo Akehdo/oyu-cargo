@@ -1,0 +1,13 @@
+[Unit]
+Description=CRM PostgreSQL backup (local or Google Drive)
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+EnvironmentFile=/etc/crm-backup.env
+ExecStart=/bin/bash /usr/local/lib/crm-backup/backup-gdrive.sh
+TimeoutStartSec=6h

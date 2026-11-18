@@ -1,0 +1,193 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ParcelStatus {
+  added
+  shipped
+  almaty
+  koksh
+  issued
+}
+
+enum PaymentType {
+  kaspiQR
+  card
+  cash
+}
+
+enum PackageType {
+  none
+  large
+  medium
+  small
+}
+
+enum UserRole {
+  admin
+  user
+}
+
+/// One identity table for everyone: role admin = CRM staff (email login),
+/// role user = cargo client (phone login, owns a client profile).
+model User {
+  id            String         @id @default(uuid()) @db.Uuid
+  email         String?        @unique @db.VarChar(255)
+  phone         String?        @unique @db.VarChar(20)
+  passwordHash  String         @map("password_hash") @db.VarChar(255)
+  sessionVersion Int           @default(0) @map("session_version")
+  role          UserRole       @default(user)
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  clientProfile ClientProfile?
+  tracks        ClientTrack[]
+  notifications Notification[]
+
+  @@index([role])
+  @@map("users")
+}
+
+model ClientProfile {
+  userId          String   @id @map("user_id") @db.Uuid
+  /// Personal 5-digit cargo code, the same number staff type into issuances.
+  code            Int      @unique
+  name            String   @db.VarChar(100)
+  termsVersion    String   @map("terms_version") @db.VarChar(20)
+  termsAcceptedAt DateTime @map("terms_accepted_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("client_profiles")
+}
+
+model Parcel {
+  id          String       @id @default(uuid()) @db.Uuid
+  trackNumber String       @unique @map("track_number") @db.VarChar(255)
+  status      ParcelStatus @default(added)
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  @@map("parcels")
+}
+
+model Record {
+  id           String        @id @default(uuid()) @db.Uuid
+  clientCode   BigInt        @map("client_code")
+  trackNumbers Json          @map("track_numbers") @db.JsonB
+  weight       Float
+  price        Decimal       @db.Decimal(12, 2)
+  packageType  PackageType   @default(none) @map("package_type")
+  paymentType  PaymentType   @map("payment_type")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+  transactions Transaction[]
+  tracks       RecordTrack[]
+
+  @@index([clientCode])
+  @@index([trackNumbers], type: Gin, map: "records_track_numbers_gin")
+  @@map("records")
+}
+
+/// One row per issued track: a track can belong to a single issuance. Keeps the
+/// parcel status from before the issuance so edits and deletes can restore it.
+model RecordTrack {
+  trackNumber    String        @id @map("track_number") @db.VarChar(255)
+  recordId       String        @map("record_id") @db.Uuid
+  /// null = the parcel did not exist and was created by this issuance.
+  previousStatus ParcelStatus? @map("previous_status")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  record         Record        @relation(fields: [recordId], references: [id], onDelete: Cascade)
+
+  @@index([recordId])
+  @@map("record_tracks")
+}
+
+model Expense {
+  id           String        @id @default(uuid()) @db.Uuid
+  amount       Decimal       @db.Decimal(12, 2)
+  comment      String        @db.VarChar(255)
+  paymentType  PaymentType   @default(cash) @map("payment_type")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+  transactions Transaction[]
+
+  @@map("expenses")
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
+model Transaction {
+  id              String          @id @default(uuid()) @db.Uuid
+  transactionType TransactionType @map("transaction_type")
+  paymentType     PaymentType     @map("payment_type")
+  amount          Decimal         @db.Decimal(12, 2)
+
+  recordId  String? @map("record_id") @db.Uuid
+  expenseId String? @map("expense_id") @db.Uuid
+  transferKey String? @map("transfer_key") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  record  Record?  @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  expense Expense? @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+
+  @@index([transactionType])
+  @@unique([transferKey, transactionType], map: "transactions_transfer_key_direction_key")
+  @@index([paymentType])
+  @@index([createdAt])
+  @@index([paymentType, transactionType, createdAt])
+  @@map("transactions")
+}
+
+/// A track number a client attached to their account. Issued tracks are archived
+/// (the client's "корзина"), never deleted.
+model ClientTrack {
+  /// True when staff created the link by issuing a parcel to this client.
+  fromIssuance   Boolean       @default(false) @map("from_issuance")
+  id             String        @id @default(uuid()) @db.Uuid
+  userId         String        @map("user_id") @db.Uuid
+  trackNumber    String        @unique @map("track_number") @db.VarChar(255)
+  comment        String?       @db.VarChar(100)
+  archivedAt     DateTime?     @map("archived_at")
+  /// Last parcel status the client was notified about (dedupes notifications).
+  notifiedStatus ParcelStatus? @map("notified_status")
+  reminderSentAt DateTime?     @map("reminder_sent_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, archivedAt])
+  @@map("client_tracks")
+}
+
+enum NotificationType {
+  status_changed
+  pickup_reminder
+}
+
+model Notification {
+  id          String           @id @default(uuid()) @db.Uuid
+  userId      String           @map("user_id") @db.Uuid
+  type        NotificationType
+  title       String           @db.VarChar(150)
+  body        String           @db.VarChar(500)
+  trackNumber String?          @map("track_number") @db.VarChar(255)
+  readAt      DateTime?        @map("read_at")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+  @@map("notifications")
+}

@@ -1,0 +1,15 @@
+server {
+  listen 443 ssl;
+  listen [::]:443 ssl;
+  http2 on;
+  server_name ${CRM_REDIRECT_NAME};
+  ssl_certificate /etc/letsencrypt/live/${CRM_DOMAIN}/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/${CRM_DOMAIN}/privkey.pem;
+  server_tokens off;
+  if ($host != $server_name) { return 404; }
+  include /etc/nginx/crm/acme.conf;
+
+  location / {
+    return 308 https://${CRM_DOMAIN}$request_uri;
+  }
+}
