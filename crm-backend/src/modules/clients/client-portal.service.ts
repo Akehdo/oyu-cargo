@@ -9,7 +9,11 @@ import { ParcelStatus, Prisma } from "../../prisma/generated";
 import { PrismaService } from "../../prisma/prisma.service";
 import { TelegramBotApi } from "../../telegram/telegram-api";
 import { loadClientStats } from "./client-stats";
-import { clientTrackResponse, loadParcelsByTrack } from "./client-tracks.view";
+import {
+  clientTrackResponse,
+  loadParcelsByTrack,
+  parcelSnapshotSelect,
+} from "./client-tracks.view";
 import { loyaltyFor } from "./loyalty";
 
 import {
@@ -114,7 +118,7 @@ export class ClientPortalService {
       }
       const parcel = await tx.parcel.findUnique({
         where: { trackNumber },
-        select: { status: true, updatedAt: true },
+        select: parcelSnapshotSelect,
       });
       const track = await tx.clientTrack.create({
         data: {

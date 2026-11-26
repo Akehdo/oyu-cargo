@@ -7,6 +7,7 @@ import { UserRole } from "../../prisma/generated";
 import { normalizePhone } from "../../shared/phone";
 import { normalizeTrackNumbers } from "../../shared/track-numbers";
 import { AccessTokenGuard, ROLES_KEY } from "../auth/guards/access-token.guard";
+import { clientTrackResponse, statusDates } from "./client-tracks.view";
 import { loyaltyFor } from "./loyalty";
 
 describe("normalizePhone", () => {
@@ -139,5 +140,42 @@ describe("AccessTokenGuard roles", () => {
       guard.canActivate(contextFor([UserRole.admin]).context),
       UnauthorizedException,
     );
+  });
+});
+
+describe("Track step dates", () => {
+  const track = {
+    archivedAt: null,
+    comment: null,
+    createdAt: new Date("2026-11-01T00:00:00Z"),
+    fromIssuance: false,
+    id: "t1",
+    notifiedStatus: null,
+    reminderSentAt: null,
+    trackNumber: "YT1",
+    userId: "u1",
+  } as never;
+
+  it("returns the date of every reached step and null for skipped ones", () => {
+    const response = clientTrackResponse(track, {
+      addedAt: new Date("2026-11-02T00:00:00Z"),
+      kokshAt: new Date("2026-11-09T00:00:00Z"),
+      shippedAt: new Date("2026-11-03T00:00:00Z"),
+      status: "koksh",
+      updatedAt: new Date("2026-11-09T00:00:00Z"),
+    });
+    assert.deepEqual(response.status_dates, {
+      added: new Date("2026-11-02T00:00:00Z"),
+      almaty: null,
+      issued: null,
+      koksh: new Date("2026-11-09T00:00:00Z"),
+      shipped: new Date("2026-11-03T00:00:00Z"),
+    });
+  });
+
+  it("falls back to the last change for the current step and has no dates before the warehouse", () => {
+    const updatedAt = new Date("2026-11-05T00:00:00Z");
+    assert.equal(statusDates({ status: "almaty", updatedAt }).almaty, updatedAt);
+    assert.deepEqual(Object.values(clientTrackResponse(track, undefined).status_dates), [null, null, null, null, null]);
   });
 });

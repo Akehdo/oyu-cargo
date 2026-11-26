@@ -31,6 +31,7 @@ const { NotificationsPanel } = await load("features/notifications/NotificationsP
 const { AuthPage } = await load("features/auth/pages/AuthPage.tsx");
 const { AddressPage } = await load("features/address/AddressPage.tsx");
 const { TracksPage } = await load("features/tracks/TracksPage.tsx");
+const { TrackProgress } = await load("features/tracks/components/TrackProgress.tsx");
 const { warehouse, hasConfirmedWarehouse } = await load("config/content.ts");
 const { act } = renderer;
 const h = React.createElement;
@@ -291,4 +292,18 @@ test("notifications distinguish loading, failure with retry, and a successful em
   assert.match(screen(), /Пока нет уведомлений/);
   assert.match(screen(), /Всё прочитано/);
   assert.doesNotMatch(screen(), /Загрузка не удалась/);
+});
+
+test("track progress shows the date under every reached step only", async () => {
+  const year = new Date().getFullYear();
+  await act(async () => { tree = renderer.create(h(TrackProgress, {
+    status: "koksh",
+    dates: { added: year + "-03-02T08:00:00Z", shipped: year + "-03-05T08:00:00Z", almaty: null, koksh: year + "-03-14T08:00:00Z", issued: null },
+  })); });
+  const dates = tree.root.findAll((node) => node.type === "time").map((node) => node.children.join(""));
+  assert.deepEqual(dates, ["2 мар.", "5 мар.", "14 мар."]);
+  const steps = tree.root.findAllByType("li");
+  assert.equal(steps[2].findAll((node) => node.type === "time").length, 0, "skipped Алматы has no date");
+  assert.equal(steps[3].props.className, "step-current");
+  assert.equal(steps[4].findAll((node) => node.type === "time").length, 0, "upcoming step has no date");
 });

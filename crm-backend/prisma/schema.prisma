@@ -82,6 +82,12 @@ model Parcel {
   id          String       @id @default(uuid()) @db.Uuid
   trackNumber String       @unique @map("track_number") @db.VarChar(255)
   status      ParcelStatus @default(added)
+  /// When each step was reached; kept by the parcels_status_dates trigger.
+  addedAt     DateTime?    @map("added_at")
+  shippedAt   DateTime?    @map("shipped_at")
+  almatyAt    DateTime?    @map("almaty_at")
+  kokshAt     DateTime?    @map("koksh_at")
+  issuedAt    DateTime?    @map("issued_at")
   createdAt   DateTime     @default(now()) @map("created_at")
   updatedAt   DateTime     @updatedAt @map("updated_at")
 

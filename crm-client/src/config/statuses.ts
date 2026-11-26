@@ -19,6 +19,9 @@ export const TRACK_STEPS = [
   "Выдано",
 ] as const;
 
+/** Status of each progress step, in the same order as TRACK_STEPS. */
+export const TRACK_STEP_STATUSES = ["added", "shipped", "almaty", "koksh", "issued"] as const;
+
 export const TRACK_STATUS_META: Record<TrackStatus, StatusMeta> = {
   pending: { label: "Ожидается на складе", step: -1, tone: "muted" },
   added: { label: "На складе в Китае", step: 0, tone: "info" },

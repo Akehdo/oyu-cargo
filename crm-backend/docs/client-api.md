@@ -118,11 +118,23 @@ Track status values:
   "comment": "кроссовки",
   "status": "almaty",
   "status_updated_at": "2026-11-17T09:00:00.000Z",
+  "status_dates": {
+    "added": "2026-11-10T08:00:00.000Z",
+    "shipped": "2026-11-12T11:30:00.000Z",
+    "almaty": "2026-11-17T09:00:00.000Z",
+    "koksh": null,
+    "issued": null
+  },
   "archived": false,
   "archived_at": null,
   "created_at": "2026-11-10T08:00:00.000Z"
 }
 ```
+
+`status_dates` tells when each step was reached. A step is `null` when it is
+not reached yet, was skipped, or was not recorded (parcels from before
+2026-11-26 only have the date of their current step and of the China
+warehouse). Going back to an earlier status clears the later dates.
 
 ### `GET /client/tracks?archived=false|true&page=1&limit=20`
 

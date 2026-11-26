@@ -42,7 +42,7 @@ export function TrackCard({
         {date ? <span className="muted small">{date}</span> : null}
       </div>
 
-      <TrackProgress status={track.status} />
+      <TrackProgress status={track.status} dates={track.status_dates} />
     </article>
   );
 }
