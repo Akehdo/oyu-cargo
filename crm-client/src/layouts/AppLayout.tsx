@@ -14,6 +14,8 @@ import { useNotifications } from "../features/notifications/NotificationsContext
 import { Logo } from "../shared/components/Logo";
 import { ThemeToggle } from "../shared/components/ThemeToggle";
 import type { ThemeMode } from "../shared/hooks/useTheme";
+import { haptic } from "../shared/telegram/miniApp";
+import { useTelegramBackButton } from "../shared/telegram/useBackButton";
 
 export type TabKey = "home" | "address" | "tracks" | "instructions" | "profile";
 
@@ -81,6 +83,13 @@ export function AppLayout({
   const { unreadCount } = useNotifications();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const current = TABS.find((tab) => tab.key === activeTab) ?? TABS[0];
+  // Telegram Mini App: the native back button returns to the home tab.
+  useTelegramBackButton(activeTab !== "home", () => onTabChange("home"));
+
+  const openTab = (key: TabKey) => {
+    if (key !== activeTab) haptic("selection");
+    onTabChange(key);
+  };
 
   return (
     <div className="app-shell">
@@ -104,7 +113,10 @@ export function AppLayout({
                 ? `Уведомления, непрочитанных: ${unreadCount}`
                 : "Уведомления"
             }
-            onClick={() => setNotificationsOpen(true)}
+            onClick={() => {
+              haptic("light");
+              setNotificationsOpen(true);
+            }}
           >
             <Bell size={20} />
             {unreadCount > 0 ? (
@@ -130,7 +142,7 @@ export function AppLayout({
             type="button"
             className={tab.key === activeTab ? "active" : ""}
             aria-current={tab.key === activeTab ? "page" : undefined}
-            onClick={() => onTabChange(tab.key)}
+            onClick={() => openTab(tab.key)}
           >
             {tab.icon}
             <span>{tab.label}</span>

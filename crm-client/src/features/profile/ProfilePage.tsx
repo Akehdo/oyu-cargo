@@ -18,6 +18,7 @@ import { TermsModal } from "../auth/components/TermsModal";
 import { useAuth } from "../auth/context/AuthContext";
 import { useMe } from "../me/MeContext";
 import { BrowserNotificationsButton } from "../notifications/NotificationsPanel";
+import { TelegramCard } from "../telegram/TelegramCard";
 
 const THEME_OPTIONS: { value: ThemePreference; label: string; icon: JSX.Element }[] = [
   { value: "system", label: "Авто", icon: <Monitor size={16} /> },
@@ -87,8 +88,10 @@ export function ProfilePage({
         </div>
       </section>
 
+      <TelegramCard />
+
       <section className="card">
-        <h2 className="section-title">Уведомления</h2>
+        <h2 className="section-title">Уведомления в браузере</h2>
         <p className="muted small">
           Мы сообщаем об изменении статуса посылок. Включите уведомления в
           браузере, чтобы видеть их, даже когда вкладка свёрнута.

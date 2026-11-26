@@ -57,6 +57,18 @@ export function ClientCardView({
                   <dt>Уровень</dt>
                   <dd>{loyalty.label}</dd>
                 </div>
+                <div>
+                  <dt>Код</dt>
+                  <dd>
+                    {client.code_source === "existing"
+                      ? "Указан клиентом при регистрации — сверьте с выдачами"
+                      : "Выдан приложением"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Telegram</dt>
+                  <dd>{client.telegram_linked ? "Подключён" : "Не подключён"}</dd>
+                </div>
               </dl>
             </>
           ) : (

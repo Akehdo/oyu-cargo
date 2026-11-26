@@ -13,13 +13,14 @@ import {
 } from "../../shared/track-numbers";
 import { loadClientStats } from "./client-stats";
 import { clientTrackResponse, loadParcelsByTrack } from "./client-tracks.view";
+import { isClientCode } from "./client-code";
 import { loyaltyFor } from "./loyalty";
 
 const CARD_TRACKS_LIMIT = 500;
 const CARD_ISSUANCES_LIMIT = 100;
 
 type ProfileWithUser = Prisma.ClientProfileGetPayload<{
-  include: { user: { select: { phone: true } } };
+  include: { user: { select: { phone: true, telegramId: true } } };
 }>;
 
 function clientSummary(profile: ProfileWithUser) {
@@ -28,6 +29,8 @@ function clientSummary(profile: ProfileWithUser) {
     created_at: profile.createdAt,
     name: profile.name,
     phone: profile.user.phone,
+    code_source: profile.codeSource,
+    telegram_linked: profile.user.telegramId !== null,
     terms_accepted_at: profile.termsAcceptedAt,
     user_id: profile.userId,
   };
@@ -49,6 +52,7 @@ export class ClientsAdminService {
             select: {
               _count: { select: { tracks: { where: { archivedAt: null } } } },
               phone: true,
+              telegramId: true,
             },
           },
         },
@@ -72,7 +76,7 @@ export class ClientsAdminService {
   /** Client card by code; works for codes that only exist in old issuances. */
   async card(code: number) {
     const profile = await this.prisma.clientProfile.findUnique({
-      include: { user: { select: { phone: true } } },
+      include: { user: { select: { phone: true, telegramId: true } } },
       where: { code },
     });
     const issuances = await this.prisma.record.findMany({
@@ -140,7 +144,7 @@ export class ClientsAdminService {
       include: {
         user: {
           select: {
-            clientProfile: { include: { user: { select: { phone: true } } } },
+            clientProfile: { include: { user: { select: { phone: true, telegramId: true } } } },
           },
         },
       },
@@ -167,9 +171,9 @@ export class ClientsAdminService {
 
     const code = Number(issued.record.clientCode);
     const profile =
-      code >= 10000 && code <= 99999
+      isClientCode(code)
         ? await this.prisma.clientProfile.findUnique({
-            include: { user: { select: { phone: true } } },
+            include: { user: { select: { phone: true, telegramId: true } } },
             where: { code },
           })
         : null;

@@ -205,6 +205,37 @@ test("signup requires both contacts and accepts edited, typed and pasted domesti
   assert.match(screen(), /Номер телефона или email уже зарегистрирован/);
 });
 
+test("signup keeps an existing personal code or asks for a new one", async () => {
+  const requests = [];
+  globalThis.fetch = async (url, options) => {
+    requests.push(JSON.parse(options.body));
+    return json({ error: { code: "CLIENT_CODE_TAKEN", message: "taken" } }, 409);
+  };
+  await mount(h(AuthPage, { mode: "register" }));
+  change(tree.root.findByProps({ autoComplete: "given-name" }), "Пример");
+  change(tree.root.findByProps({ autoComplete: "email" }), "client@example.invalid");
+  change(tree.root.findByProps({ autoComplete: "tel" }), "+77011234567");
+  for (const field of tree.root.findAllByProps({ type: "password", autoComplete: "new-password" })) change(field, "example-password");
+  act(() => tree.root.findByProps({ id: "accept-terms" }).props.onChange({ target: { checked: true } }));
+  const submit = () => act(() => tree.root.findByType("form").props.onSubmit({ preventDefault }));
+
+  await submit();
+  assert.equal("existing_code" in requests.at(-1), false);
+
+  act(() => button("У меня уже есть код").props.onClick());
+  const code = tree.root.findByProps({ placeholder: "12345" });
+  change(code, "12a3");
+  assert.equal(code.props.value, "123");
+  await submit();
+  assert.match(screen(), /Личный код состоит из 5 цифр/);
+  assert.equal(requests.length, 1);
+
+  change(code, "54321");
+  await submit();
+  assert.equal(requests.at(-1).existing_code, 54321);
+  assert.match(screen(), /уже привязан к другому аккаунту/);
+});
+
 test("late track creation refreshes the current archive and pages beyond the former 500-item boundary", async () => {
   const requests = [];
   let finishAdd, finishPageTwo;

@@ -185,6 +185,41 @@ Report generation outside 20:00 is skipped, and generation/delivery results are 
 If either Telegram setting is empty, all CRM
 operations continue normally and notifications stay disabled.
 
+#### Client notifications and the Mini App (same bot)
+
+The same bot also talks to cargo clients in private chats; there is no second bot
+and no e-mail. Staff reports still go only to `TELEGRAM_CHAT_ID`.
+
+1. In `@BotFather`: `/newapp` (or *Bot Settings → Configure Mini App*) with the URL
+   `https://oyu-cargo.online/`. The backend also sets the chat menu button to this URL.
+2. Add to the production `.env`:
+
+   ```text
+   TELEGRAM_WEBHOOK_SECRET=<random 32+ chars, A-Z a-z 0-9 _ ->
+   # Optional, these are the production defaults:
+   # TELEGRAM_WEBHOOK_URL=https://oyu-cargo.online/api/telegram/webhook
+   # TELEGRAM_MINI_APP_URL=https://oyu-cargo.online/
+   # TELEGRAM_BOT_USERNAME=oyu_cargo_bot   # otherwise read with getMe
+   ```
+
+3. Restart the app. On start it calls `setWebhook` (with the secret), `setMyCommands`
+   and `setChatMenuButton`.
+
+How clients connect: opened from the bot, the cabinet signs in by itself once the
+Telegram account is linked; on first use the client logs in or registers and the
+account links automatically. In a browser, *Профиль → Подключить Telegram* gives a
+one-time `t.me/<bot>?start=<token>` link (15 minutes). `/stop` in the bot unlinks.
+
+Status changes and pickup reminders are written to `notifications` inside the CRM
+transactions; every 15 seconds the app delivers new rows created after the link
+(at most 3 days old, up to 5 attempts), one grouped message per client. A client who
+blocks the bot is unlinked automatically.
+
+Local Compose never sets the webhook, menu or commands and does not message clients,
+because the bot is shared with production. To test the bot locally, use a separate
+test bot token with `TELEGRAM_POLLING=true` and `TELEGRAM_CLIENT_NOTIFICATIONS_ENABLED=true`
+outside Compose — polling deletes the webhook of the bot it runs on.
+
 ### Users and roles
 
 One `users` table holds everyone:

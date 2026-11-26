@@ -19,6 +19,9 @@ import { useRouter } from "../../../shared/router";
 export type AuthTab = "login" | "register";
 
 const MIN_PASSWORD_LENGTH = 6;
+const CLIENT_CODE_PATTERN = /^[1-9]\d{4}$/;
+
+type CodeMode = "new" | "existing";
 
 export function AuthPage({
   mode,
@@ -248,6 +251,8 @@ function RegisterForm({ onSwitch }: { onSwitch: () => void }): JSX.Element {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [passwordRepeat, setPasswordRepeat] = useState("");
+  const [codeMode, setCodeMode] = useState<CodeMode>("new");
+  const [existingCode, setExistingCode] = useState("");
   const [accepted, setAccepted] = useState(false);
   const [termsOpen, setTermsOpen] = useState(false);
   const [error, setError] = useState("");
@@ -270,6 +275,11 @@ function RegisterForm({ onSwitch }: { onSwitch: () => void }): JSX.Element {
       setError("Укажите полный номер телефона, например +7 (701) 123-45-67.");
       return;
     }
+    const code = existingCode.trim();
+    if (codeMode === "existing" && !CLIENT_CODE_PATTERN.test(code)) {
+      setError("Личный код состоит из 5 цифр, например 12345.");
+      return;
+    }
     if (password.length < MIN_PASSWORD_LENGTH) {
       setError(`Пароль должен быть не короче ${MIN_PASSWORD_LENGTH} символов.`);
       return;
@@ -285,11 +295,22 @@ function RegisterForm({ onSwitch }: { onSwitch: () => void }): JSX.Element {
 
     setBusy(true);
     try {
-      await register({ name: name.trim(), email: email.trim(), phone: normalizedPhone, password });
+      await register({
+        name: name.trim(),
+        email: email.trim(),
+        phone: normalizedPhone,
+        password,
+        existingCode: codeMode === "existing" ? Number(code) : undefined,
+      });
     } catch (caught) {
       if (caught instanceof ApiError && caught.code === "TERMS_VERSION_MISMATCH") {
         setAccepted(false);
         setError("Условия изменились. Обновите страницу, прочитайте новую редакцию и подтвердите согласие.");
+        setBusy(false);
+        return;
+      }
+      if (caught instanceof ApiError && caught.code === "CLIENT_CODE_TAKEN") {
+        setError("Этот личный код уже привязан к другому аккаунту. Проверьте код или напишите нам в WhatsApp.");
         setBusy(false);
         return;
       }
@@ -330,6 +351,53 @@ function RegisterForm({ onSwitch }: { onSwitch: () => void }): JSX.Element {
           required
         />
       </label>
+      <fieldset className="code-choice">
+        <legend>Личный код</legend>
+        <div className="segmented" role="radiogroup" aria-label="Личный код">
+          <button
+            type="button"
+            role="radio"
+            aria-checked={codeMode === "new"}
+            className={codeMode === "new" ? "active" : ""}
+            onClick={() => setCodeMode("new")}
+          >
+            Получить новый
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={codeMode === "existing"}
+            className={codeMode === "existing" ? "active" : ""}
+            onClick={() => setCodeMode("existing")}
+          >
+            У меня уже есть код
+          </button>
+        </div>
+        {codeMode === "existing" ? (
+          <>
+            <label>
+              Ваш личный код
+              <input
+                inputMode="numeric"
+                autoComplete="off"
+                placeholder="12345"
+                maxLength={5}
+                value={existingCode}
+                onChange={(event) => setExistingCode(event.target.value.replace(/\D/g, "").slice(0, 5))}
+                required
+              />
+            </label>
+            <p className="field-hint muted">
+              Код из 5 цифр, по которому вы уже получали посылки. Прошлые выдачи
+              по нему появятся в истории кабинета.
+            </p>
+          </>
+        ) : (
+          <p className="field-hint muted">
+            Новый код из 5 цифр выдадим сразу после регистрации.
+          </p>
+        )}
+      </fieldset>
       <PasswordField
         label={`Пароль (не менее ${MIN_PASSWORD_LENGTH} символов)`}
         value={password}
@@ -377,7 +445,7 @@ function RegisterForm({ onSwitch }: { onSwitch: () => void }): JSX.Element {
         disabled={busy || !accepted}
       >
         {busy ? <LoaderCircle className="spin" size={18} /> : null}
-        Получить личный код
+        {codeMode === "existing" ? "Зарегистрироваться" : "Получить личный код"}
       </button>
       <p className="form-footnote">
         Уже есть код?{" "}

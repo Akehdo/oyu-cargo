@@ -1,5 +1,7 @@
 import { ConflictException } from "@nestjs/common";
 import { NotificationType, ParcelStatus, Prisma } from "../../prisma/generated";
+import { lockTrackNumbers } from "../../shared/track-numbers";
+import { isClientCode } from "./client-code";
 import { notificationBody, statusTitles } from "./client-tracks.view";
 
 /** Call after the final parcel and record_track writes, with track locks held. */
@@ -17,9 +19,7 @@ export async function reconcileIssuedClientTracks(
   const codeByTrack = new Map(
     issuances.map((t) => [t.trackNumber, Number(t.record.clientCode)]),
   );
-  const profileCodes = [...new Set(codeByTrack.values())].filter(
-    (code) => code >= 10000 && code <= 99999,
-  );
+  const profileCodes = [...new Set(codeByTrack.values())].filter(isClientCode);
   const profiles = await tx.clientProfile.findMany({
     where: { code: { in: profileCodes } },
     select: { code: true, userId: true },
@@ -67,6 +67,44 @@ export async function reconcileIssuedClientTracks(
     await tx.clientTrack.deleteMany({ where: { id: { in: unlink } } });
   if (additions.length) await tx.clientTrack.createMany({ data: additions });
   await syncClientTrackStatuses(tx, affected);
+}
+
+/**
+ * A client who registered with a code they already had gets the parcels staff
+ * issued to that code before signup, in the archive. Tracks another account
+ * already holds are left alone: the code itself is not verified.
+ */
+export async function linkPastIssuances(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  code: number,
+): Promise<number> {
+  const issued = await tx.recordTrack.findMany({
+    where: { record: { clientCode: BigInt(code) } },
+    select: { trackNumber: true },
+  });
+  const trackNumbers = issued.map((track) => track.trackNumber);
+  if (!trackNumbers.length) return 0;
+  await lockTrackNumbers(tx, trackNumbers);
+  const linked = await tx.clientTrack.findMany({
+    where: { trackNumber: { in: trackNumbers } },
+    select: { trackNumber: true },
+  });
+  const taken = new Set(linked.map((track) => track.trackNumber));
+  const free = trackNumbers.filter((trackNumber) => !taken.has(trackNumber));
+  if (!free.length) return 0;
+  const now = new Date();
+  await tx.clientTrack.createMany({
+    data: free.map((trackNumber) => ({
+      archivedAt: now,
+      fromIssuance: true,
+      notifiedStatus: ParcelStatus.issued,
+      trackNumber,
+      userId,
+    })),
+  });
+  // Old history must not produce "status changed" notifications on signup.
+  return free.length;
 }
 
 /** All callers hold the same per-track locks as warehouse and issuance writes. */

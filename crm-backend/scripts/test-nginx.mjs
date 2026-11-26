@@ -102,7 +102,8 @@ try {
   const page = await request(localPort, '/');
   assert.equal(page.headers['x-content-type-options'], 'nosniff');
   assert.equal(page.headers['x-frame-options'], 'DENY');
-  assert.match(page.headers['content-security-policy'] ?? '', /frame-ancestors 'none'/);
+  // The cabinet may be framed only by Telegram Web (Mini App).
+  assert.match(page.headers['content-security-policy'] ?? '', /frame-ancestors https:\/\/web\.telegram\.org"?$/);
   assert.equal(page.headers['cache-control'], 'no-cache');
   const asset = await request(localPort, '/assets/missing.js');
   assert.equal(asset.headers['x-content-type-options'], 'nosniff');

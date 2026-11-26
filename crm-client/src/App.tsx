@@ -8,6 +8,7 @@ import { InstructionsPage } from "./features/instructions/InstructionsPage";
 import { MeProvider } from "./features/me/MeContext";
 import { NotificationsProvider } from "./features/notifications/NotificationsContext";
 import { ProfilePage } from "./features/profile/ProfilePage";
+import { TelegramAutoLink } from "./features/telegram/TelegramCard";
 import { TracksPage } from "./features/tracks/TracksPage";
 import { AppLayout, pathForTab, TabKey, tabForPath } from "./layouts/AppLayout";
 import { Logo } from "./shared/components/Logo";
@@ -71,6 +72,7 @@ export function App(): JSX.Element {
 
   return (
     <MeProvider>
+      <TelegramAutoLink />
       {welcomePending ? (
         <div className="public-shell">
           <WelcomePage

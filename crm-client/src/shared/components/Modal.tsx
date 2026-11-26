@@ -1,6 +1,7 @@
 import { X } from "lucide-react";
 import { PropsWithChildren, ReactNode, useEffect, useId } from "react";
 import { createPortal } from "react-dom";
+import { useTelegramBackButton } from "../telegram/useBackButton";
 
 type ModalProps = PropsWithChildren<{
   open: boolean;
@@ -20,6 +21,7 @@ export function Modal({
   children,
 }: ModalProps): JSX.Element | null {
   const titleId = useId();
+  useTelegramBackButton(open, onClose, 10);
 
   useEffect(() => {
     if (!open) {
