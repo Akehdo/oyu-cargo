@@ -35,6 +35,24 @@ export function formatDateTime(value: string | null | undefined): string {
   return Number.isNaN(date.getTime()) ? "" : dateTimeFormatter.format(date);
 }
 
+const shortDateFormatter = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" });
+const shortDateYearFormatter = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", year: "2-digit" });
+
+/** "26 нояб." this year, "26.11.25" for other years: fits under a progress step. */
+export function formatShortDate(value: string | null | undefined, now = new Date()): string {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  return date.getFullYear() === now.getFullYear()
+    ? shortDateFormatter.format(date)
+    : shortDateYearFormatter.format(date);
+}
+
 export function formatDate(value: string | null | undefined): string {
   if (!value) {
     return "";

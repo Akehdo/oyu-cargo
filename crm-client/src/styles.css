@@ -1403,6 +1403,39 @@ textarea:focus {
   color: var(--text);
 }
 
+/* Date the step was reached, right under its label. Dot, label and date
+   rows are shared by all steps, so dates stay on one line even when
+   "Склад Китай" wraps on a narrow phone. */
+.track-progress {
+  grid-template-rows: auto auto auto;
+  row-gap: 6px;
+}
+
+.track-progress li {
+  grid-row: span 3;
+  grid-template-rows: subgrid;
+  align-content: start;
+}
+
+.step-label {
+  align-self: start;
+}
+
+.step-date {
+  margin-top: -3px;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.step-current .step-date {
+  color: var(--brand);
+  font-weight: 800;
+}
+
 /* ---------- Instructions ---------- */
 
 .instructions-hero {

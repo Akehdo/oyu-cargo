@@ -6,7 +6,39 @@ export type ClientTrackStatus = ParcelStatus | "pending";
 export type ParcelSnapshot = {
   status: ParcelStatus;
   updatedAt: Date;
+  /** When each step was reached; kept by the parcels_status_dates trigger. */
+  addedAt?: Date | null;
+  shippedAt?: Date | null;
+  almatyAt?: Date | null;
+  kokshAt?: Date | null;
+  issuedAt?: Date | null;
 };
+
+export const parcelSnapshotSelect = {
+  addedAt: true,
+  almatyAt: true,
+  issuedAt: true,
+  kokshAt: true,
+  shippedAt: true,
+  status: true,
+  updatedAt: true,
+} as const;
+
+export type StatusDates = Record<ParcelStatus, Date | null>;
+
+/** Date of each step: null when not reached, skipped, or not recorded (old parcels). */
+export function statusDates(parcel: ParcelSnapshot | undefined): StatusDates {
+  const dates: StatusDates = {
+    added: parcel?.addedAt ?? null,
+    shipped: parcel?.shippedAt ?? null,
+    almaty: parcel?.almatyAt ?? null,
+    koksh: parcel?.kokshAt ?? null,
+    issued: parcel?.issuedAt ?? null,
+  };
+  // The current step was reached at the last status change at the latest.
+  if (parcel && !dates[parcel.status]) dates[parcel.status] = parcel.updatedAt;
+  return dates;
+}
 
 export const statusTitles: Record<ParcelStatus, string> = {
   added: "Посылка принята на складе в Китае",
@@ -25,15 +57,12 @@ export async function loadParcelsByTrack(
   }
 
   const parcels = await prisma.parcel.findMany({
-    select: { status: true, trackNumber: true, updatedAt: true },
+    select: { ...parcelSnapshotSelect, trackNumber: true },
     where: { trackNumber: { in: trackNumbers } },
   });
 
   return new Map(
-    parcels.map((parcel) => [
-      parcel.trackNumber,
-      { status: parcel.status, updatedAt: parcel.updatedAt },
-    ]),
+    parcels.map(({ trackNumber, ...parcel }) => [trackNumber, parcel]),
   );
 }
 
@@ -50,6 +79,7 @@ export function clientTrackResponse(
     created_at: track.createdAt,
     id: track.id,
     status,
+    status_dates: statusDates(parcel),
     status_updated_at: parcel?.updatedAt ?? null,
     track_number: track.trackNumber,
   };

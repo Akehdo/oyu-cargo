@@ -54,6 +54,8 @@ export type ClientTrack = {
   comment: string | null;
   status: TrackStatus;
   status_updated_at: string | null;
+  /** When each step was reached; null when not reached, skipped or unknown. */
+  status_dates?: Partial<Record<Exclude<TrackStatus, "pending">, string | null>>;
   archived: boolean;
   archived_at: string | null;
   created_at: string;
