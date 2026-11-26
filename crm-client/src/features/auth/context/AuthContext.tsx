@@ -17,6 +17,7 @@ import {
 import { terms } from "../../../config/content";
 import { normalizePhoneInput } from "../../../shared/utils/format";
 import type { TokenPairResponse } from "../../../shared/api/types";
+import { clearInitData, getInitData } from "../../../shared/telegram/miniApp";
 import {
   AuthTokens,
   clearStoredTokens,
@@ -42,6 +43,8 @@ export type RegisterPayload = {
   email: string;
   phone: string;
   password: string;
+  /** A code the client already had; omitted = the platform assigns a new one. */
+  existingCode?: number;
 };
 
 type AuthApiOptions = ApiRequestOptions & {
@@ -72,7 +75,8 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: PropsWithChildren): JSX.Element {
   const initialTokens = useMemo(() => getStoredTokens(), []);
   const [tokens, setTokensState] = useState<AuthTokens | null>(initialTokens);
-  const [bootstrapping, setBootstrapping] = useState(Boolean(initialTokens));
+  // Inside Telegram a linked account signs in by itself, so wait for that too.
+  const [bootstrapping, setBootstrapping] = useState(Boolean(initialTokens || getInitData()));
   const [sessionMessage, setSessionMessage] = useState("");
   const [welcomePending, setWelcomePending] = useState(false);
   const tokensRef = useRef<AuthTokens | null>(initialTokens);
@@ -176,12 +180,20 @@ export function AuthProvider({ children }: PropsWithChildren): JSX.Element {
   );
 
   const register = useCallback(
-    async ({ name, email, phone, password }: RegisterPayload) => {
+    async ({ name, email, phone, password, existingCode }: RegisterPayload) => {
       const payload = await request<TokenPairResponse>(
         "/client/auth/register",
         {
           method: "POST",
-          body: { name, email, phone, password, accept_terms: true, terms_version: terms.version },
+          body: {
+            name,
+            email,
+            phone,
+            password,
+            accept_terms: true,
+            terms_version: terms.version,
+            ...(existingCode === undefined ? {} : { existing_code: existingCode }),
+          },
         },
       );
       setWelcomePending(true);
@@ -222,8 +234,33 @@ export function AuthProvider({ children }: PropsWithChildren): JSX.Element {
   useEffect(() => {
     const current = tokensRef.current;
     if (!current?.refreshToken) {
-      setBootstrapping(false);
-      return;
+      const initData = getInitData();
+      if (!initData) {
+        setBootstrapping(false);
+        return;
+      }
+      let active = true;
+      request<TokenPairResponse>("/client/auth/telegram", {
+        method: "POST",
+        body: { init_data: initData },
+      })
+        .then((payload) => {
+          if (active && !tokensRef.current) setTokens(startLogin(payload));
+        })
+        .catch((error: unknown) => {
+          if (!active) return;
+          if (error instanceof ApiError && error.code === "TELEGRAM_NOT_LINKED") {
+            setSessionMessage("Войдите или зарегистрируйтесь — этот Telegram подключится к кабинету автоматически.");
+          } else if (error instanceof ApiError && error.status === 401) {
+            clearInitData();
+          }
+        })
+        .finally(() => {
+          if (active) setBootstrapping(false);
+        });
+      return () => {
+        active = false;
+      };
     }
 
     const expiresAt = decodeJwtExpiration(current.accessToken);

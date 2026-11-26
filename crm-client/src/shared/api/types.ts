@@ -7,9 +7,19 @@ export type TokenPairResponse = {
 
 export type LoyaltyLevel = "start" | "bronze" | "silver" | "gold";
 
+export type ClientTelegram = {
+  /** False when the bot is not configured on the server. */
+  enabled: boolean;
+  linked: boolean;
+  username: string | null;
+};
+
 export type ClientMe = {
   id: string;
   code: number;
+  /** existing = the client kept a code they had before the cabinet. */
+  code_source?: "generated" | "existing";
+  telegram?: ClientTelegram;
   name: string;
   phone: string;
   created_at: string;

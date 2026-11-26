@@ -8,19 +8,19 @@ import {
 import { ConfigService } from "@nestjs/config";
 import bcrypt from "bcryptjs";
 
-import { Prisma, UserRole } from "../../prisma/generated";
+import { ClientCodeSource, Prisma, UserRole } from "../../prisma/generated";
 import { PrismaService } from "../../prisma/prisma.service";
 import { normalizeEmail } from "../../shared/email";
 import { normalizePhone } from "../../shared/phone";
 import { AuthService } from "../auth/auth.service";
 import { TokenPair } from "../auth/types/auth-types";
+import { CLIENT_CODE_MAX, CLIENT_CODE_MIN } from "./client-code";
 import { RegisterClientDto } from "./dto/client-auth.dto";
+import { linkPastIssuances } from "./issuance-tracks";
 
 /** Bump when the cargo terms text in crm-client/src/config/content.ts changes. */
 export const CLIENT_TERMS_VERSION = "2026-11-18";
 
-const CODE_MIN = 10_000;
-const CODE_MAX = 99_999;
 const CODE_ATTEMPTS = 30;
 const PASSWORD_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
 
@@ -53,28 +53,45 @@ export class ClientAccountsService {
     const email = normalizeEmail(dto.email);
     await this.ensureContactsAreFree(email, phone);
     const passwordHash = await bcrypt.hash(dto.password, 10);
+    const existingCode = dto.existing_code;
+    if (existingCode !== undefined) {
+      await this.ensureCodeIsFree(existingCode);
+    }
 
     // Retry when two registrations race for the same random code.
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      const code = await this.pickFreeCode();
+      const code = existingCode ?? (await this.pickFreeCode());
 
       try {
-        const user = await this.prisma.user.create({
-          data: {
-            clientProfile: {
-              create: {
-                code,
-                name: dto.name,
-                termsAcceptedAt: new Date(),
-                termsVersion: dto.terms_version,
+        const user = await this.prisma.$transaction(
+          async (tx) => {
+            const created = await tx.user.create({
+              data: {
+                clientProfile: {
+                  create: {
+                    code,
+                    codeSource:
+                      existingCode === undefined
+                        ? ClientCodeSource.generated
+                        : ClientCodeSource.existing,
+                    name: dto.name,
+                    termsAcceptedAt: new Date(),
+                    termsVersion: CLIENT_TERMS_VERSION,
+                  },
+                },
+                email,
+                passwordHash,
+                phone,
+                role: UserRole.user,
               },
-            },
-            email,
-            passwordHash,
-            phone,
-            role: UserRole.user,
+            });
+            if (existingCode !== undefined) {
+              await linkPastIssuances(tx, created.id, existingCode);
+            }
+            return created;
           },
-        });
+          { maxWait: 10_000, timeout: 30_000 },
+        );
 
         return { ...(await this.auth.issueTokens(user)), client_code: code };
       } catch (error) {
@@ -87,6 +104,10 @@ export class ClientAccountsService {
         // A concurrent signup may have taken a contact after our availability check.
         // Only a random profile-code collision should proceed to the next attempt.
         await this.ensureContactsAreFree(email, phone);
+        if (existingCode !== undefined) {
+          await this.ensureCodeIsFree(existingCode);
+          throw error;
+        }
       }
     }
 
@@ -135,10 +156,27 @@ export class ClientAccountsService {
     }
   }
 
+  /** A code typed by an existing client must not belong to another account. */
+  private async ensureCodeIsFree(code: number): Promise<void> {
+    const taken = await this.prisma.clientProfile.findUnique({
+      select: { userId: true },
+      where: { code },
+    });
+    if (taken) {
+      const message =
+        "Этот личный код уже привязан к другому аккаунту. Напишите нам в WhatsApp.";
+      throw new ConflictException({
+        statusCode: 409,
+        error: { code: "CLIENT_CODE_TAKEN", message },
+        message,
+      });
+    }
+  }
+
   /** Random 5-digit code not used by another client or by past CRM issuances. */
   private async pickFreeCode(): Promise<number> {
     for (let attempt = 0; attempt < CODE_ATTEMPTS; attempt += 1) {
-      const code = randomInt(CODE_MIN, CODE_MAX + 1);
+      const code = randomInt(CLIENT_CODE_MIN, CLIENT_CODE_MAX + 1);
       const [profile, record] = await Promise.all([
         this.prisma.clientProfile.findUnique({
           select: { userId: true },

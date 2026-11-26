@@ -7,6 +7,7 @@ import {
 
 import { ParcelStatus, Prisma } from "../../prisma/generated";
 import { PrismaService } from "../../prisma/prisma.service";
+import { TelegramBotApi } from "../../telegram/telegram-api";
 import { loadClientStats } from "./client-stats";
 import { clientTrackResponse, loadParcelsByTrack } from "./client-tracks.view";
 import { loyaltyFor } from "./loyalty";
@@ -22,20 +23,30 @@ import {
 
 @Injectable()
 export class ClientPortalService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly bot: TelegramBotApi,
+  ) {}
 
   async me(userId: string) {
     const profile = await this.requireProfile(userId);
     const stats = await loadClientStats(this.prisma, profile.code, userId);
 
+    const telegramLinked = profile.user.telegramId !== null;
     return {
       code: profile.code,
+      code_source: profile.codeSource,
       created_at: profile.createdAt,
       id: userId,
       loyalty: loyaltyFor(stats.issued_weight_kg),
       name: profile.name,
       phone: profile.user.phone,
       stats,
+      telegram: {
+        enabled: this.bot.isEnabled(),
+        linked: telegramLinked,
+        username: telegramLinked ? profile.user.telegramUsername : null,
+      },
     };
   }
 
@@ -183,7 +194,11 @@ export class ClientPortalService {
 
   private async requireProfile(userId: string) {
     const profile = await this.prisma.clientProfile.findUnique({
-      include: { user: { select: { phone: true } } },
+      include: {
+        user: {
+          select: { phone: true, telegramId: true, telegramUsername: true },
+        },
+      },
       where: { userId },
     });
     if (!profile) {

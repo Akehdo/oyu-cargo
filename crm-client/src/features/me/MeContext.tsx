@@ -51,6 +51,11 @@ export function MeProvider({ children }: PropsWithChildren): JSX.Element {
   return <MeContext.Provider value={value}>{children}</MeContext.Provider>;
 }
 
+/** For widgets that also render outside the signed-in cabinet. */
+export function useOptionalMe(): MeContextValue | null {
+  return useContext(MeContext);
+}
+
 export function useMe(): MeContextValue {
   const context = useContext(MeContext);
   if (!context) {

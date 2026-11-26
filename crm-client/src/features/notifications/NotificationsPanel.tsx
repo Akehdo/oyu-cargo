@@ -1,7 +1,9 @@
 import { BellOff, BellRing, CheckCheck, Clock, PackageCheck } from "lucide-react";
 import { Modal } from "../../shared/components/Modal";
 import { EmptyState, ErrorState, Spinner } from "../../shared/components/States";
+import { insideTelegram } from "../../shared/telegram/miniApp";
 import { formatDateTime } from "../../shared/utils/format";
+import { TelegramNotificationsFooter } from "../telegram/TelegramCard";
 import { useNotifications } from "./NotificationsContext";
 
 export function NotificationsPanel({
@@ -19,7 +21,13 @@ export function NotificationsPanel({
       open={open}
       title="Уведомления"
       onClose={onClose}
-      footer={<BrowserNotificationsButton />}
+      footer={
+        <div className="notification-channels">
+          <TelegramNotificationsFooter />
+          {/* Telegram webviews have no Notification API: the bot is the channel there. */}
+          {insideTelegram() ? null : <BrowserNotificationsButton />}
+        </div>
+      }
     >
       {!loading && !error && <div className="notifications-toolbar">
         <span className="muted">

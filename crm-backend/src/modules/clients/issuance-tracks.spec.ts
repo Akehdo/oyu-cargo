@@ -66,7 +66,7 @@ describe(
         get: () => process.env.TEST_DATABASE_URL,
       } as never);
       await db.$connect();
-      portal = new ClientPortalService(db);
+      portal = new ClientPortalService(db, { isEnabled: () => false } as never);
       records = new RecordsService(db);
       for (const key of ["a", "b", "list"] as const) {
         await db.user.create({

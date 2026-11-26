@@ -105,6 +105,9 @@ describe("public login and registration contracts", () => {
       createdAt: new Date(),
       updatedAt: new Date(),
       sessionVersion: 0,
+      telegramId: null,
+      telegramLinkedAt: null,
+      telegramUsername: null,
     };
     const admin = {
       ...base,
