@@ -1,5 +1,6 @@
 import { Check, Copy } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { haptic } from "../telegram/miniApp";
 import { copyText } from "../utils/clipboard";
 
 type CopyButtonProps = {
@@ -27,6 +28,7 @@ export function CopyButton({
   const handleClick = async () => {
     const ok = await copyText(text);
     setState(ok ? "copied" : "failed");
+    haptic(ok ? "success" : "error");
     window.clearTimeout(timerRef.current);
     timerRef.current = window.setTimeout(() => setState("idle"), 1800);
   };

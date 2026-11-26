@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react";
 import { usePersistedState } from "./usePersistedState";
+import {
+  insideTelegram,
+  onTelegramEvent,
+  setChromeColors,
+  telegramColorScheme,
+} from "../telegram/miniApp";
 
 export type ThemeMode = "dark" | "light";
 export type ThemePreference = ThemeMode | "system";
@@ -7,7 +13,10 @@ export type ThemePreference = ThemeMode | "system";
 const THEME_STORAGE_KEY = "cargo.client.theme";
 const LIGHT_QUERY = "(prefers-color-scheme: light)";
 
+/** Inside Telegram "system" means the Telegram theme, not the phone's. */
 function getSystemTheme(): ThemeMode {
+  const telegram = telegramColorScheme();
+  if (telegram) return telegram;
   try {
     return window.matchMedia(LIGHT_QUERY).matches ? "light" : "dark";
   } catch {
@@ -41,9 +50,13 @@ export function useTheme(): {
       return undefined;
     }
 
-    const onChange = () => setSystemTheme(media.matches ? "light" : "dark");
+    const onChange = () => setSystemTheme(getSystemTheme());
     media.addEventListener("change", onChange);
-    return () => media.removeEventListener("change", onChange);
+    const offTelegram = onTelegramEvent("theme_changed", onChange);
+    return () => {
+      media.removeEventListener("change", onChange);
+      offTelegram();
+    };
   }, []);
 
   const theme = preference === "system" ? systemTheme : preference;
@@ -53,6 +66,11 @@ export function useTheme(): {
     document
       .querySelector('meta[name="theme-color"]')
       ?.setAttribute("content", theme === "dark" ? "#0e0e0e" : "#ffffff");
+    if (insideTelegram()) {
+      const background = theme === "dark" ? "#0e0e0e" : "#f7f5f2";
+      // The tab bar is always black, so Telegram's bottom bar is too.
+      setChromeColors({ background, bottomBar: "#0e0e0e", header: background });
+    }
   }, [theme]);
 
   return {

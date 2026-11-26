@@ -54,7 +54,10 @@
   --column: 560px;
   --header-h: 60px;
   --tabbar-h: 66px;
+  --safe-top: 0px;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+  /* Visible height; Telegram reports its own (the webview can be shorter). */
+  --app-height: 100dvh;
 
   /* Always-dark tab bar */
   --tabbar-bg: #0e0e0e;
@@ -716,17 +719,17 @@ textarea:focus {
 .public-shell {
   position: relative;
   min-height: 100vh;
-  min-height: 100dvh;
+  min-height: var(--app-height);
   display: grid;
   align-content: center;
   justify-items: center;
   gap: 18px;
-  padding: 32px 16px calc(32px + var(--safe-bottom));
+  padding: calc(32px + var(--safe-top)) 16px calc(32px + var(--safe-bottom));
 }
 
 .floating-theme {
   position: absolute;
-  top: 14px;
+  top: calc(14px + var(--safe-top));
   right: 14px;
 }
 
@@ -811,7 +814,7 @@ textarea:focus {
 
 .app-shell {
   min-height: 100vh;
-  min-height: 100dvh;
+  min-height: var(--app-height);
   padding-bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 24px);
 }
 
@@ -819,14 +822,14 @@ textarea:focus {
   position: sticky;
   top: 0;
   z-index: 20;
-  height: var(--header-h);
+  height: calc(var(--header-h) + var(--safe-top));
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   width: min(var(--column), 100%);
   margin: 0 auto;
-  padding: 0 12px 0 16px;
+  padding: var(--safe-top) 12px 0 16px;
   background: color-mix(in srgb, var(--bg), transparent 12%);
   backdrop-filter: saturate(160%) blur(14px);
   -webkit-backdrop-filter: saturate(160%) blur(14px);
@@ -965,7 +968,7 @@ textarea:focus {
 .modal {
   width: min(var(--column), 100%);
   max-height: 92vh;
-  max-height: 92dvh;
+  max-height: calc(var(--app-height) - var(--safe-top) - 24px);
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   border-radius: 22px 22px 0 0;
@@ -2102,5 +2105,172 @@ textarea:focus {
   :root {
     --sidebar-w: 288px;
     --content-w: 1280px;
+  }
+}
+
+/* ---------- Registration: personal code choice ---------- */
+
+.code-choice {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.code-choice legend {
+  padding: 0;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.code-choice .segmented button {
+  white-space: normal;
+  line-height: 1.2;
+}
+
+.code-choice .field-hint {
+  margin-top: 0;
+}
+
+/* ---------- Telegram ---------- */
+
+.telegram-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.telegram-status svg {
+  color: var(--ok);
+}
+
+.telegram-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+a.primary-button {
+  text-decoration: none;
+}
+
+.telegram-actions.compact {
+  margin-top: 0;
+}
+
+.telegram-blocked {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.telegram-blocked .secondary-button {
+  color: var(--text);
+}
+
+.notification-channels {
+  display: grid;
+  gap: 10px;
+}
+
+.telegram-footer-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 0;
+}
+
+.telegram-promo {
+  position: relative;
+  gap: 12px;
+}
+
+.telegram-promo .card-title {
+  padding-right: 32px;
+}
+
+.telegram-promo .card-title p {
+  margin: 4px 0 0;
+}
+
+.telegram-promo-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
+
+/* ---------- Telegram Mini App ----------
+   Telegram reports safe areas (fullscreen, notch, home indicator) and its
+   viewport height through events; miniApp.ts writes them to --tg-* vars. */
+
+button,
+a,
+input,
+label {
+  touch-action: manipulation;
+}
+
+:root[data-telegram="true"] {
+  --safe-top: calc(
+    var(--tg-safe-area-inset-top, 0px) + var(--tg-content-safe-area-inset-top, 0px)
+  );
+  --safe-bottom: max(
+    env(safe-area-inset-bottom, 0px),
+    calc(var(--tg-safe-area-inset-bottom, 0px) + var(--tg-content-safe-area-inset-bottom, 0px))
+  );
+  --app-height: var(--tg-viewport-stable-height, 100dvh);
+  --header-h: 52px;
+}
+
+:root[data-telegram="true"] body {
+  /* Pull-to-refresh and rubber-band scrolling fight Telegram's own gestures. */
+  overscroll-behavior: none;
+}
+
+:root[data-telegram="true"] .app-header {
+  background: var(--bg);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+:root[data-telegram="true"] .page-title {
+  margin: 0 0 12px;
+  font-size: 24px;
+}
+
+:root[data-telegram="true"] .tab-bar,
+:root[data-telegram="true"] .app-header {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+:root[data-telegram="true"] .modal-body {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Telegram Desktop opens the Mini App in a narrow window: keep phone layout
+   paddings tight there, and on tiny phones make the tab labels fit. */
+@media (max-width: 360px) {
+  .tab-bar {
+    padding-left: 2px;
+    padding-right: 2px;
+  }
+
+  .tab-bar button {
+    font-size: 10px;
+  }
+
+  .app-main {
+    padding-left: 12px;
+    padding-right: 12px;
   }
 }

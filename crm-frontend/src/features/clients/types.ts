@@ -10,6 +10,9 @@ export type ClientSummary = {
   phone: string | null;
   created_at: string;
   terms_accepted_at: string;
+  /** existing = the client typed a code they already had when registering. */
+  code_source?: "generated" | "existing";
+  telegram_linked?: boolean;
 };
 
 export type ClientListItem = ClientSummary & {

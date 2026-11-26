@@ -14,6 +14,7 @@ import { TransactionsModule } from "./modules/transactions/transactions.module";
 import { TelegramModule } from "./telegram/telegram.module";
 import { ReportsModule } from "./modules/reports/reports.module";
 import { ClientsModule } from "./modules/clients/clients.module";
+import { ClientTelegramModule } from "./modules/client-telegram/client-telegram.module";
 
 @Module({
   controllers: [HealthController],
@@ -33,6 +34,7 @@ import { ClientsModule } from "./modules/clients/clients.module";
     TransactionsModule,
     ReportsModule,
     ClientsModule,
+    ClientTelegramModule,
   ],
 })
 export class AppModule {}

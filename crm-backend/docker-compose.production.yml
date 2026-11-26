@@ -4,6 +4,11 @@ services:
   app:
     environment:
       TELEGRAM_DAILY_REPORT_ENABLED: ${TELEGRAM_DAILY_REPORT_ENABLED:-true}
+      TELEGRAM_CLIENT_NOTIFICATIONS_ENABLED: ${TELEGRAM_CLIENT_NOTIFICATIONS_ENABLED:-true}
+      TELEGRAM_MINI_APP_URL: ${TELEGRAM_MINI_APP_URL:-https://oyu-cargo.online/}
+      TELEGRAM_WEBHOOK_URL: ${TELEGRAM_WEBHOOK_URL:-https://oyu-cargo.online/api/telegram/webhook}
+      # Without a secret the webhook is not set (logged as an error): clients can still link from the Mini App.
+      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-}
   frontend:
     environment:
       CRM_DOMAIN: ${CRM_DOMAIN:-oyu-cargo.online}

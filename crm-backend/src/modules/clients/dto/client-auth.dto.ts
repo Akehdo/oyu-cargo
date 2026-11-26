@@ -1,14 +1,19 @@
-import { Transform } from "class-transformer";
+import { Transform, Type } from "class-transformer";
 import {
   Equals,
   IsBoolean,
   IsEmail,
+  IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
+  Max,
   MaxLength,
+  Min,
   MinLength,
 } from "class-validator";
+
+import { CLIENT_CODE_MAX, CLIENT_CODE_MIN } from "../client-code";
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === "string" ? value.trim() : value;
@@ -44,6 +49,21 @@ export class RegisterClientDto {
   @IsString()
   @MaxLength(20)
   terms_version?: string;
+
+  /** A code the client already had; omitted = assign a new random code. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt({ message: "Личный код должен состоять из 5 цифр." })
+  @Min(CLIENT_CODE_MIN, { message: "Личный код должен состоять из 5 цифр." })
+  @Max(CLIENT_CODE_MAX, { message: "Личный код должен состоять из 5 цифр." })
+  existing_code?: number;
+}
+
+export class TelegramInitDataDto {
+  @IsString({ message: "invalid value" })
+  @IsNotEmpty({ message: "field is required" })
+  @MaxLength(4096, { message: "invalid value" })
+  init_data!: string;
 }
 
 export class ClientLoginDto {

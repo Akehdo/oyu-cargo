@@ -75,6 +75,14 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
       TELEGRAM_DAILY_REPORT_ENABLED: "false"
+      # Same bot as production: locally it neither messages clients nor
+      # touches the webhook. Production enables both (docker-compose.production.yml).
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
+      TELEGRAM_CLIENT_NOTIFICATIONS_ENABLED: "false"
+      TELEGRAM_MINI_APP_URL: ${TELEGRAM_MINI_APP_URL:-}
+      TELEGRAM_WEBHOOK_URL: ""
+      TELEGRAM_WEBHOOK_SECRET: ""
+      TELEGRAM_POLLING: ${TELEGRAM_POLLING:-false}
       CLIENT_NOTIFICATIONS_CRON_ENABLED: ${CLIENT_NOTIFICATIONS_CRON_ENABLED:-true}
       CLIENT_PICKUP_REMINDER_DAYS: ${CLIENT_PICKUP_REMINDER_DAYS:-5}
 

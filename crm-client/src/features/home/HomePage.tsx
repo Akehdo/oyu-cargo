@@ -6,6 +6,7 @@ import { CopyButton } from "../../shared/components/CopyButton";
 import { ErrorState, Spinner } from "../../shared/components/States";
 import { formatMoney, formatNumber, formatWeight } from "../../shared/utils/format";
 import { useMe } from "../me/MeContext";
+import { TelegramPromo } from "../telegram/TelegramCard";
 
 export function HomePage(): JSX.Element {
   const { me, loading, error, reload } = useMe();
@@ -36,6 +37,7 @@ export function HomePage(): JSX.Element {
         />
       </section>
 
+      <TelegramPromo />
       <LoyaltyCard me={me} />
       <StatsCard me={me} />
       <TariffsCard />
