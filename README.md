@@ -1,13 +1,12 @@
 # OYU Cargo
 
-Исходный код CRM и клиентского кабинета OYU Cargo. Все четыре части проекта находятся в одном репозитории.
+Исходный код CRM и клиентского кабинета OYU Cargo. Все три части проекта находятся в одном репозитории.
 
 | Каталог | Содержимое |
 | --- | --- |
 | [crm-backend](crm-backend/README.md) | API на NestJS, миграции PostgreSQL, Redis и Docker Compose |
 | [crm-frontend](crm-frontend/README.md) | Админ-панель и конфигурация Nginx |
 | [crm-client](crm-client/README.md) | Личный кабинет клиента |
-| [crm-infra](crm-infra/) | Terraform и Ansible |
 
 ### Запуск через Docker Compose
 

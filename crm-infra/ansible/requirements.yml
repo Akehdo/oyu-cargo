@@ -1,6 +1,0 @@
----
-# Collections used by project roles.
-collections:
-  # roles/common/tasks/main.yml uses community.general.timezone.
-  - name: community.general
-  - name: ansible.posix
