@@ -31,7 +31,6 @@ OYU Cargo — карго из Китая в Казахстан с пунктом
 | `crm-backend/` | API на NestJS 11, Prisma + PostgreSQL 16, Redis, Docker Compose, Telegram-бот |
 | `crm-frontend/` | Админ-панель (React + Vite) по адресу `/admin` и конфигурация Nginx |
 | `crm-client/` | Личный кабинет клиента (React + Vite) в корне `/`, он же Telegram Mini App |
-| `crm-infra/` | Terraform и Ansible для сервера |
 
 - Роли — одна таблица `users`: `admin` (сотрудники, вход по email) и `user`
   (клиенты, вход по телефону или email, профиль с 5-значным личным кодом).
